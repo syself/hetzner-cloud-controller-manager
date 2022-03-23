@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hetznercloud/hcloud-cloud-controller-manager/internal/metrics"
 	"github.com/hetznercloud/hcloud-go/hcloud"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	v1 "k8s.io/api/core/v1"
 )
 

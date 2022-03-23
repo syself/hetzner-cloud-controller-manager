@@ -56,11 +56,11 @@ spec:
           effect: "NoSchedule"
       hostNetwork: true
       containers:
-        - image: hetznercloud/hcloud-cloud-controller-manager:latest
+        - image: quay.io/syself/hetzner-cloud-controller-manager:latest
           name: hcloud-cloud-controller-manager
           command:
-            - "/bin/hcloud-cloud-controller-manager"
-            - "--cloud-provider=hcloud"
+            - "/bin/hetzner-cloud-controller-manager"
+            - "--cloud-provider=hetzner"
             - "--leader-elect=false"
             - "--allow-untagged-cloud"
             - "--allocate-node-cidrs=true"
