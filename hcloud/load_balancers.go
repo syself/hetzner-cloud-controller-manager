@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hetznercloud/hcloud-cloud-controller-manager/internal/annotation"
-	"github.com/hetznercloud/hcloud-cloud-controller-manager/internal/hcops"
-	"github.com/hetznercloud/hcloud-cloud-controller-manager/internal/metrics"
 	"github.com/hetznercloud/hcloud-go/hcloud"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	v1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
@@ -23,7 +23,7 @@ type LoadBalancerOps interface {
 	Create(ctx context.Context, lbName string, service *v1.Service) (*hcloud.LoadBalancer, error)
 	Delete(ctx context.Context, lb *hcloud.LoadBalancer) error
 	ReconcileHCLB(ctx context.Context, lb *hcloud.LoadBalancer, svc *v1.Service) (bool, error)
-	ReconcileHCLBTargets(ctx context.Context, lb *hcloud.LoadBalancer, svc *v1.Service, nodes []*v1.Node) (bool, error)
+	ReconcileHCLBTargets(ctx context.Context, lb *hcloud.LoadBalancer, svc *v1.Service, nodes []*v1.Node, disableIPV6 bool) (bool, error)
 	ReconcileHCLBServices(ctx context.Context, lb *hcloud.LoadBalancer, svc *v1.Service) (bool, error)
 }
 
@@ -148,7 +148,12 @@ func (l *loadBalancers) EnsureLoadBalancer(
 	}
 	reload = reload || servicesChanged
 
-	targetsChanged, err := l.lbOps.ReconcileHCLBTargets(ctx, lb, svc, nodes)
+	disableIPV6, err := l.getDisableIPv6(svc)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %v", op, err)
+	}
+
+	targetsChanged, err := l.lbOps.ReconcileHCLBTargets(ctx, lb, svc, nodes, disableIPV6)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -262,7 +267,13 @@ func (l *loadBalancers) UpdateLoadBalancer(
 	if _, err = l.lbOps.ReconcileHCLB(ctx, lb, svc); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
-	if _, err = l.lbOps.ReconcileHCLBTargets(ctx, lb, svc, nodes); err != nil {
+
+	disableIPV6, err := l.getDisableIPv6(svc)
+	if err != nil {
+		return fmt.Errorf("%s: %v", op, err)
+	}
+
+	if _, err = l.lbOps.ReconcileHCLBTargets(ctx, lb, svc, nodes, disableIPV6); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	if _, err = l.lbOps.ReconcileHCLBServices(ctx, lb, svc); err != nil {

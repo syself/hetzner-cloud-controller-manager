@@ -1,4 +1,4 @@
-module github.com/hetznercloud/hcloud-cloud-controller-manager
+module github.com/syself/hetzner-cloud-controller-manager
 
 go 1.18
 
@@ -7,6 +7,7 @@ require (
 	github.com/prometheus/client_golang v1.12.1
 	github.com/spf13/pflag v1.0.5
 	github.com/stretchr/testify v1.8.0
+	github.com/syself/hrobot-go v0.2.4
 	golang.org/x/crypto v0.0.0-20220622213112-05595931fe9d
 	k8s.io/api v0.24.2
 	k8s.io/apimachinery v0.24.2
