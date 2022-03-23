@@ -3,9 +3,9 @@ package hcops
 import (
 	"context"
 
-	"github.com/hetznercloud/hcloud-cloud-controller-manager/internal/mocks"
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	"github.com/stretchr/testify/mock"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/mocks"
 	v1 "k8s.io/api/core/v1"
 )
 
@@ -43,9 +43,9 @@ func (m *MockLoadBalancerOps) ReconcileHCLB(
 }
 
 func (m *MockLoadBalancerOps) ReconcileHCLBTargets(
-	ctx context.Context, lb *hcloud.LoadBalancer, svc *v1.Service, nodes []*v1.Node,
+	ctx context.Context, lb *hcloud.LoadBalancer, svc *v1.Service, nodes []*v1.Node, disableIPV6 bool,
 ) (bool, error) {
-	args := m.Called(ctx, lb, svc, nodes)
+	args := m.Called(ctx, lb, svc, nodes, disableIPV6)
 	return args.Bool(0), args.Error(1)
 }
 
