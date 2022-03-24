@@ -61,8 +61,8 @@ spec:
         - image: quay.io/syself/hetzner-cloud-controller-manager:v1.9.1
           name: hcloud-cloud-controller-manager
           command:
-            - "/bin/hcloud-cloud-controller-manager"
-            - "--cloud-provider=hcloud"
+            - "/bin/hetzner-cloud-controller-manager"
+            - "--cloud-provider=hetzner"
             - "--leader-elect=false"
             - "--allow-untagged-cloud"
           resources:

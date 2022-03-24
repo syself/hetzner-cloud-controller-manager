@@ -68,7 +68,7 @@ network agent. Feel free to adapt the steps to your preferred method of
 installing Kubernetes.
 
 These deployment instructions are designed to guide with the
-installation of the `hcloud-cloud-controller-manager` and are by no
+installation of the `hetzner-cloud-controller-manager` and are by no
 means an in depth tutorial of setting up Kubernetes clusters.
 **Previous knowledge about the involved components is required.**
 
@@ -124,7 +124,7 @@ documentation](https://kubernetes.io/docs/reference/setup-tools/kubeadm/kubeadm/
     kubectl -n kube-system create secret generic hcloud --from-literal=token=<hcloud API token>
     ```
 
-7. Deploy the `hcloud-cloud-controller-manager`:
+7. Deploy the `hetzner-cloud-controller-manager`:
 
     ```
     kubectl apply -f  https://github.com/syself/hetzner-cloud-controller-manager/releases/latest/download/ccm.yaml
