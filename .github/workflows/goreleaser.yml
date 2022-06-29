@@ -30,7 +30,7 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/')"
         uses: goreleaser/goreleaser-action@v2
         with:
-          version: dev
+          version: latest
           args: release --snapshot --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -45,7 +45,7 @@ jobs:
         if: "startsWith(github.ref, 'refs/tags/')"
         uses: goreleaser/goreleaser-action@v2
         with:
-          version: dev
+          version: latest
           args: release --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
