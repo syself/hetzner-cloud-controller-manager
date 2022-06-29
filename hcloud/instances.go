@@ -28,6 +28,7 @@ import (
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/klog/v2"
 )
 
 type addressFamily int
@@ -186,6 +187,8 @@ func (i instances) InstanceExistsByProviderID(ctx context.Context, providerID st
 	if i.robotClient == nil {
 		return false, errMissingRobotCredentials
 	}
+
+	klog.Infof("%s: calling robot API to get server with provider_id %v", op, providerID)
 
 	server, err := i.robotClient.ServerGet(id)
 	if err != nil {

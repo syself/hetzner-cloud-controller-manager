@@ -5,7 +5,7 @@ on:
     tags:
       - v*
     branches:
-      - master
+      - dev
 jobs:
   goreleaser:
     runs-on: ubuntu-latest
@@ -30,7 +30,7 @@ jobs:
         if: "!startsWith(github.ref, 'refs/tags/')"
         uses: goreleaser/goreleaser-action@v2
         with:
-          version: latest
+          version: dev
           args: release --snapshot --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -40,12 +40,12 @@ jobs:
           DOCKER_USER: ${{ secrets.DOCKER_USER }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
-           docker push quay.io/syself/hetzner-cloud-controller-manager:latest
+           docker push quay.io/syself/hetzner-cloud-controller-manager:dev
       - name: Run GoReleaser for tag
         if: "startsWith(github.ref, 'refs/tags/')"
         uses: goreleaser/goreleaser-action@v2
         with:
-          version: latest
+          version: dev
           args: release --rm-dist
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
