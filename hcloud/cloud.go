@@ -29,6 +29,7 @@ import (
 	"github.com/hetznercloud/hcloud-go/hcloud/metadata"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
 	hrobot "github.com/syself/hrobot-go"
+
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 )
@@ -62,8 +63,7 @@ var (
 )
 
 type cloud struct {
-	client       *hcloud.Client
-	robotClient  hrobot.RobotClient
+	client       *client
 	instances    *instances
 	zones        *zones
 	routes       *routes
@@ -96,7 +96,7 @@ func newCloud(config io.Reader) (cloudprovider.Interface, error) {
 	if endpoint := os.Getenv(hcloudEndpointENVVar); endpoint != "" {
 		opts = append(opts, hcloud.WithEndpoint(endpoint))
 	}
-	client := hcloud.NewClient(opts...)
+	cloudClient := hcloud.NewClient(opts...)
 	metadataClient := metadata.NewClient()
 
 	robotUserName, foundRobotUserName := os.LookupEnv(robotUserNameENVVar)
@@ -107,9 +107,11 @@ func newCloud(config io.Reader) (cloudprovider.Interface, error) {
 		robotClient = hrobot.NewBasicAuthClient(robotUserName, robotPassword)
 	}
 
+	client := newClient(cloudClient, robotClient)
+
 	var networkID int
 	if v, ok := os.LookupEnv(hcloudNetworkENVVar); ok {
-		n, _, err := client.Network.Get(context.Background(), v)
+		n, _, err := client.cloudClient.Network.Get(context.Background(), v)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
@@ -136,7 +138,7 @@ func newCloud(config io.Reader) (cloudprovider.Interface, error) {
 		klog.Infof("%s: %s empty", op, hcloudNetworkENVVar)
 	}
 
-	_, _, err := client.Server.List(context.Background(), hcloud.ServerListOpts{})
+	_, _, err := client.cloudClient.Server.List(context.Background(), hcloud.ServerListOpts{})
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -149,16 +151,16 @@ func newCloud(config io.Reader) (cloudprovider.Interface, error) {
 	klog.Infof("Hetzner Cloud k8s cloud controller %s started\n", providerVersion)
 
 	lbOps := &hcops.LoadBalancerOps{
-		LBClient:      &client.LoadBalancer,
-		CertOps:       &hcops.CertificateOps{CertClient: &client.Certificate},
-		ActionClient:  &client.Action,
-		NetworkClient: &client.Network,
+		LBClient:      &client.cloudClient.LoadBalancer,
+		CertOps:       &hcops.CertificateOps{CertClient: &client.cloudClient.Certificate},
+		ActionClient:  &client.cloudClient.Action,
+		NetworkClient: &client.cloudClient.Network,
 		RobotClient:   robotClient,
 		NetworkID:     networkID,
 		Defaults:      lbOpsDefaults,
 	}
 
-	loadBalancers := newLoadBalancers(lbOps, &client.Action, lbDisablePrivateIngress, lbDisableIPv6)
+	loadBalancers := newLoadBalancers(lbOps, &client.cloudClient.Action, lbDisablePrivateIngress, lbDisableIPv6)
 	if os.Getenv(hcloudLoadBalancersEnabledENVVar) == "false" {
 		loadBalancers = nil
 	}
@@ -170,9 +172,8 @@ func newCloud(config io.Reader) (cloudprovider.Interface, error) {
 
 	return &cloud{
 		client:       client,
-		robotClient:  robotClient,
-		zones:        newZones(client, robotClient, nodeName),
-		instances:    newInstances(client, robotClient, instancesAddressFamily),
+		zones:        newZones(client.cloudClient, robotClient, nodeName),
+		instances:    newInstances(client, instancesAddressFamily),
 		loadBalancer: loadBalancers,
 		routes:       nil,
 		networkID:    networkID,
@@ -180,6 +181,9 @@ func newCloud(config io.Reader) (cloudprovider.Interface, error) {
 }
 
 func (c *cloud) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, stop <-chan struct{}) {
+	c.client.kubernetes = clientBuilder.ClientOrDie("cloud-controller-manager")
+
+	klog.Infof("clientset initialized")
 }
 
 func (c *cloud) Instances() (cloudprovider.Instances, bool) {
@@ -209,7 +213,7 @@ func (c *cloud) Clusters() (cloudprovider.Clusters, bool) {
 
 func (c *cloud) Routes() (cloudprovider.Routes, bool) {
 	if c.networkID > 0 {
-		r, err := newRoutes(c.client, c.networkID)
+		r, err := newRoutes(c.client.cloudClient, c.networkID)
 		if err != nil {
 			klog.ErrorS(err, "create routes provider", "networkID", c.networkID)
 			return nil, false

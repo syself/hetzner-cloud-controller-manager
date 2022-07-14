@@ -23,11 +23,13 @@ import (
 	"strconv"
 
 	"github.com/hetznercloud/hcloud-go/hcloud"
-	hrobot "github.com/syself/hrobot-go"
 	"github.com/syself/hrobot-go/models"
 	v1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	cloudprovider "k8s.io/cloud-provider"
+	cloudproviderapi "k8s.io/cloud-provider/api"
+	"k8s.io/klog/v2"
 )
 
 type addressFamily int
@@ -39,17 +41,18 @@ const (
 )
 
 type instances struct {
-	client        *hcloud.Client
-	robotClient   hrobot.RobotClient
+	client        *client
 	addressFamily addressFamily
 }
 
-func newInstances(client *hcloud.Client, robotClient hrobot.RobotClient, addressFamily addressFamily) *instances {
-	return &instances{client, robotClient, addressFamily}
+func newInstances(client *client, addressFamily addressFamily) *instances {
+	return &instances{client, addressFamily}
 }
 
 func (i *instances) NodeAddressesByProviderID(ctx context.Context, providerID string) ([]v1.NodeAddress, error) {
 	const op = "hcloud/instances.NodeAddressesByProviderID"
+
+	klog.V(4).Info("Called ", op, " providerID=", providerID)
 
 	id, isHCloudServer, err := providerIDToServerID(providerID)
 	if err != nil {
@@ -57,14 +60,14 @@ func (i *instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 	}
 
 	if isHCloudServer {
-		server, err := getHCloudServerByID(ctx, i.client, id)
+		server, err := getHCloudServerByID(ctx, i.client.cloudClient, id)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 		return i.hcloudNodeAddresses(ctx, server), nil
 	}
 
-	server, err := getRobotServerByID(ctx, i.robotClient, id)
+	server, err := getRobotServerByID(ctx, i.client.robotClient, id)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -74,15 +77,17 @@ func (i *instances) NodeAddressesByProviderID(ctx context.Context, providerID st
 func (i *instances) NodeAddresses(ctx context.Context, nodeName types.NodeName) ([]v1.NodeAddress, error) {
 	const op = "hcloud/instances.NodeAddresses"
 
+	klog.V(4).Info("Called ", op)
+
 	if isHCloudServerByName(string(nodeName)) {
-		server, err := getHCloudServerByName(ctx, i.client, string(nodeName))
+		server, err := getHCloudServerByName(ctx, i.client.cloudClient, string(nodeName))
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 		return i.hcloudNodeAddresses(ctx, server), nil
 	}
 
-	server, err := getRobotServerByName(ctx, i.robotClient, string(nodeName))
+	server, err := getRobotServerByName(ctx, i.client.robotClient, string(nodeName))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -91,6 +96,8 @@ func (i *instances) NodeAddresses(ctx context.Context, nodeName types.NodeName) 
 
 func (i *instances) ExternalID(ctx context.Context, nodeName types.NodeName) (string, error) {
 	const op = "hcloud/instances.ExternalID"
+
+	klog.V(4).Info("Called ", op)
 
 	id, err := i.InstanceID(ctx, nodeName)
 	if err != nil {
@@ -102,15 +109,17 @@ func (i *instances) ExternalID(ctx context.Context, nodeName types.NodeName) (st
 func (i *instances) InstanceID(ctx context.Context, nodeName types.NodeName) (string, error) {
 	const op = "hcloud/instances.InstanceID"
 
+	klog.V(4).Info("Called ", op)
+
 	if isHCloudServerByName(string(nodeName)) {
-		server, err := getHCloudServerByName(ctx, i.client, string(nodeName))
+		server, err := getHCloudServerByName(ctx, i.client.cloudClient, string(nodeName))
 		if err != nil {
 			return "", fmt.Errorf("%s: %w", op, err)
 		}
 		return strconv.Itoa(server.ID), nil
 	}
 
-	server, err := getRobotServerByName(ctx, i.robotClient, string(nodeName))
+	server, err := getRobotServerByName(ctx, i.client.robotClient, string(nodeName))
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
@@ -122,14 +131,14 @@ func (i *instances) InstanceType(ctx context.Context, nodeName types.NodeName) (
 	const op = "hcloud/instances.InstanceType"
 
 	if isHCloudServerByName(string(nodeName)) {
-		server, err := getHCloudServerByName(ctx, i.client, string(nodeName))
+		server, err := getHCloudServerByName(ctx, i.client.cloudClient, string(nodeName))
 		if err != nil {
 			return "", fmt.Errorf("%s: %w", op, err)
 		}
 		return server.ServerType.Name, nil
 	}
 
-	server, err := getRobotServerByName(ctx, i.robotClient, string(nodeName))
+	server, err := getRobotServerByName(ctx, i.client.robotClient, string(nodeName))
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
@@ -139,20 +148,22 @@ func (i *instances) InstanceType(ctx context.Context, nodeName types.NodeName) (
 func (i *instances) InstanceTypeByProviderID(ctx context.Context, providerID string) (string, error) {
 	const op = "hcloud/instances.InstanceTypeByProviderID"
 
+	klog.V(4).Info("Called ", op)
+
 	id, isHCloudServer, err := providerIDToServerID(providerID)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
 	if isHCloudServer {
-		server, err := getHCloudServerByID(ctx, i.client, id)
+		server, err := getHCloudServerByID(ctx, i.client.cloudClient, id)
 		if err != nil {
 			return "", fmt.Errorf("%s: %w", op, err)
 		}
 		return server.ServerType.Name, nil
 	}
 
-	server, err := getRobotServerByID(ctx, i.robotClient, id)
+	server, err := getRobotServerByID(ctx, i.client.robotClient, id)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
@@ -170,24 +181,26 @@ func (i *instances) CurrentNodeName(ctx context.Context, hostname string) (types
 func (i instances) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
 	const op = "hcloud/instances.InstanceExistsByProviderID"
 
+	klog.V(4).Info("Called ", op)
+
 	id, isHCloudServer, err := providerIDToServerID(providerID)
 	if err != nil {
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
 
 	if isHCloudServer {
-		server, _, err := i.client.Server.GetByID(ctx, id)
+		server, _, err := i.client.cloudClient.Server.GetByID(ctx, id)
 		if err != nil {
 			return false, fmt.Errorf("%s: %w", op, err)
 		}
 		return server != nil, nil
 	}
 
-	if i.robotClient == nil {
+	if i.client.robotClient == nil {
 		return false, errMissingRobotCredentials
 	}
 
-	server, err := i.robotClient.ServerGet(id)
+	server, err := i.client.robotClient.ServerGet(id)
 	if err != nil {
 		if models.IsError(err, models.ErrorCodeNotFound) {
 			return false, nil
@@ -206,7 +219,7 @@ func (i instances) InstanceShutdownByProviderID(ctx context.Context, providerID 
 	}
 
 	if isHCloudServer {
-		server, _, err := i.client.Server.GetByID(ctx, id)
+		server, _, err := i.client.cloudClient.Server.GetByID(ctx, id)
 		if err != nil {
 			return false, fmt.Errorf("%s: %w", op, err)
 		}
@@ -224,6 +237,13 @@ func (i *instances) hcloudNodeAddresses(ctx context.Context, server *hcloud.Serv
 		v1.NodeAddress{Type: v1.NodeHostName, Address: server.Name},
 	)
 
+	if i.addressFamily == AddressFamilyIPv4 || i.addressFamily == AddressFamilyDualStack {
+		addresses = append(
+			addresses,
+			v1.NodeAddress{Type: v1.NodeExternalIP, Address: server.PublicNet.IPv4.IP.String()},
+		)
+	}
+
 	if i.addressFamily == AddressFamilyIPv6 || i.addressFamily == AddressFamilyDualStack {
 		// For a given IPv6 network of 2001:db8:1234::/64, the instance address is 2001:db8:1234::1
 		host_address := server.PublicNet.IPv6.IP
@@ -235,16 +255,9 @@ func (i *instances) hcloudNodeAddresses(ctx context.Context, server *hcloud.Serv
 		)
 	}
 
-	if i.addressFamily == AddressFamilyIPv4 || i.addressFamily == AddressFamilyDualStack {
-		addresses = append(
-			addresses,
-			v1.NodeAddress{Type: v1.NodeExternalIP, Address: server.PublicNet.IPv4.IP.String()},
-		)
-	}
-
 	n := os.Getenv(hcloudNetworkENVVar)
 	if len(n) > 0 {
-		network, _, _ := i.client.Network.Get(ctx, n)
+		network, _, _ := i.client.cloudClient.Network.Get(ctx, n)
 		if network != nil {
 			for _, privateNet := range server.PrivateNet {
 				if privateNet.Network.ID == network.ID {
@@ -267,6 +280,25 @@ func (i *instances) robotNodeAddresses(ctx context.Context, server *models.Serve
 		v1.NodeAddress{Type: v1.NodeHostName, Address: server.Name},
 	)
 
+	if i.client.kubernetes != nil {
+		if node, _ := i.client.kubernetes.CoreV1().Nodes().Get(context.TODO(), server.Name, metav1.GetOptions{}); node != nil {
+			providedIP, ok := node.ObjectMeta.Annotations[cloudproviderapi.AnnotationAlphaProvidedIPAddr]
+			if ok {
+				addresses = append(
+					addresses,
+					v1.NodeAddress{Type: v1.NodeInternalIP, Address: providedIP},
+				)
+			}
+		}
+	}
+
+	if i.addressFamily == AddressFamilyIPv4 || i.addressFamily == AddressFamilyDualStack {
+		addresses = append(
+			addresses,
+			v1.NodeAddress{Type: v1.NodeExternalIP, Address: server.ServerIP},
+		)
+	}
+
 	if i.addressFamily == AddressFamilyIPv6 || i.addressFamily == AddressFamilyDualStack {
 		// For a given IPv6 network of 2a01:f48:111:4221::, the instance address is 2a01:f48:111:4221::1
 		host_address := server.ServerIPv6Net
@@ -275,13 +307,6 @@ func (i *instances) robotNodeAddresses(ctx context.Context, server *models.Serve
 		addresses = append(
 			addresses,
 			v1.NodeAddress{Type: v1.NodeExternalIP, Address: host_address},
-		)
-	}
-
-	if i.addressFamily == AddressFamilyIPv4 || i.addressFamily == AddressFamilyDualStack {
-		addresses = append(
-			addresses,
-			v1.NodeAddress{Type: v1.NodeExternalIP, Address: server.ServerIP},
 		)
 	}
 
