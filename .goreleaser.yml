@@ -29,7 +29,7 @@ dockers:
     goos: linux
     goarch: amd64
     image_templates:
-      - "quay.io/syself/hetzner-cloud-controller-manager:latest"
+      - "quay.io/syself/hetzner-cloud-controller-manager:dev"
       - "quay.io/syself/hetzner-cloud-controller-manager:{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}"
     dockerfile: Dockerfile
     use: buildx

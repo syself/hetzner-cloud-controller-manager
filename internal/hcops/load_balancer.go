@@ -602,6 +602,8 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 
 	// List all robot servers to check whether the ip targets of the load balancer
 	// correspond to a dedicated server
+	klog.Infof("%s: calling robot API to list servers", op)
+
 	dedicatedServers, err := l.RobotClient.ServerGetList()
 	if err != nil {
 		return changed, fmt.Errorf("%s: failed to get list of dedicated servers: %w", op, err)

@@ -64,6 +64,8 @@ func getRobotServerByName(ctx context.Context, c hrobot.RobotClient, name string
 		return nil, errMissingRobotCredentials
 	}
 
+	klog.Infof("%s: calling robot API to list servers", op)
+
 	serverList, err := c.ServerGetList()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -88,6 +90,8 @@ func getRobotServerByID(ctx context.Context, c hrobot.RobotClient, id int) (*mod
 	if c == nil {
 		return nil, errMissingRobotCredentials
 	}
+
+	klog.Infof("%s: calling robot API to get server with id %v", op, id)
 
 	server, err := c.ServerGet(id)
 	if err != nil {

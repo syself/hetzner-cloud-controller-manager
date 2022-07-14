@@ -200,6 +200,8 @@ func (i instances) InstanceExistsByProviderID(ctx context.Context, providerID st
 		return false, errMissingRobotCredentials
 	}
 
+	klog.Infof("%s: calling robot API to get server with provider_id %v", op, providerID)
+
 	server, err := i.client.robotClient.ServerGet(id)
 	if err != nil {
 		if models.IsError(err, models.ErrorCodeNotFound) {
