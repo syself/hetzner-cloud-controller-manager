@@ -110,20 +110,19 @@ func (i *instances) InstanceID(ctx context.Context, nodeName types.NodeName) (st
 
 	klog.V(4).Info("Called ", op)
 
-	if isHCloudServerByName(string(nodeName)) {
-		server, err := getHCloudServerByName(ctx, i.client.cloudClient, string(nodeName))
-		if err != nil {
-			return "", fmt.Errorf("%s: %w", op, err)
-		}
-		return strconv.Itoa(server.ID), nil
+	hserver, err := getHCloudServerByName(ctx, i.client.cloudClient, string(nodeName))
+	if err == nil {
+		return strconv.Itoa(hserver.ID), nil
+	} else if err != cloudprovider.InstanceNotFound {
+		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
-	server, err := getRobotServerByName(ctx, i.client.robotClient, string(nodeName))
+	rserver, err := getRobotServerByName(ctx, i.client.robotClient, string(nodeName))
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
-	return hostNamePrefixRobot + strconv.Itoa(server.ServerNumber), nil
+	return hostNamePrefixRobot + strconv.Itoa(rserver.ServerNumber), nil
 }
 
 func (i *instances) InstanceType(ctx context.Context, nodeName types.NodeName) (string, error) {
