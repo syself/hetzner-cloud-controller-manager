@@ -58,7 +58,7 @@ func getHCloudServerByID(ctx context.Context, c *hcloud.Client, id int) (*hcloud
 }
 
 func getRobotServerByName(ctx context.Context, c hrobot.RobotClient, name string) (server *models.Server, err error) {
-	const op = "robot/getServerByName"
+	const op = "robot/getRobotServerByName"
 
 	if c == nil {
 		return nil, errMissingRobotCredentials
@@ -85,7 +85,7 @@ func getRobotServerByName(ctx context.Context, c hrobot.RobotClient, name string
 }
 
 func getRobotServerByID(ctx context.Context, c hrobot.RobotClient, id int) (*models.Server, error) {
-	const op = "robot/getServerByID"
+	const op = "robot/getRobotServerByID"
 
 	if c == nil {
 		return nil, errMissingRobotCredentials
