@@ -116,15 +116,16 @@ func zoneFromHCloudServer(server *hcloud.Server) cloudprovider.Zone {
 	region := server.Datacenter.Location.Name
 	return cloudprovider.Zone{
 		Region:        region,
-		FailureDomain: failureDomainFromRegion(region),
+		FailureDomain: server.Datacenter.Name,
 	}
 }
 
 func zoneFromRobotServer(server *models.Server) cloudprovider.Zone {
 	region := strings.ToLower(server.Dc[:4])
 	return cloudprovider.Zone{
-		Region:        region,
-		FailureDomain: failureDomainFromRegion(region),
+		Region: region,
+		// FailureDomain: failureDomainFromRegion(region),
+		FailureDomain: strings.ToLower(server.Dc),
 	}
 }
 
