@@ -148,12 +148,12 @@ func (i *instances) InstanceType(ctx context.Context, nodeName types.NodeName) (
 func (i *instances) InstanceTypeByProviderID(ctx context.Context, providerID string) (string, error) {
 	const op = "hcloud/instances.InstanceTypeByProviderID"
 
-	klog.V(4).Info("Called ", op)
-
 	id, isHCloudServer, err := providerIDToServerID(providerID)
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
+
+	klog.V(4).Info("Called ", op, " providerID=", providerID, " isHCloudServer=", isHCloudServer)
 
 	if isHCloudServer {
 		server, err := getHCloudServerByID(ctx, i.client.cloudClient, id)
@@ -181,12 +181,12 @@ func (i *instances) CurrentNodeName(ctx context.Context, hostname string) (types
 func (i instances) InstanceExistsByProviderID(ctx context.Context, providerID string) (bool, error) {
 	const op = "hcloud/instances.InstanceExistsByProviderID"
 
-	klog.V(4).Info("Called ", op)
-
 	id, isHCloudServer, err := providerIDToServerID(providerID)
 	if err != nil {
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
+
+	klog.V(4).Info("Called ", op, " providerID=", providerID, " isHCloudServer=", isHCloudServer)
 
 	if isHCloudServer {
 		server, _, err := i.client.cloudClient.Server.GetByID(ctx, id)
@@ -209,7 +209,8 @@ func (i instances) InstanceExistsByProviderID(ctx context.Context, providerID st
 		}
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
-	return isRobotServerInCluster(server.Name), nil
+
+	return server.Name != "", nil
 }
 
 func (i instances) InstanceShutdownByProviderID(ctx context.Context, providerID string) (bool, error) {
@@ -219,6 +220,8 @@ func (i instances) InstanceShutdownByProviderID(ctx context.Context, providerID 
 	if err != nil {
 		return false, fmt.Errorf("%s: %w", op, err)
 	}
+
+	klog.V(4).Info("Called ", op, " providerID=", providerID, " isHCloudServer=", isHCloudServer)
 
 	if isHCloudServer {
 		server, _, err := i.client.cloudClient.Server.GetByID(ctx, id)
