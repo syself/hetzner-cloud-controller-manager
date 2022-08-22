@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	hrobot "github.com/syself/hrobot-go"
@@ -134,7 +135,8 @@ func (i *instances) InstanceType(ctx context.Context, nodeName types.NodeName) (
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
-	return server.Product, nil
+
+	return strings.ReplaceAll(server.Product, " ", "-"), nil
 }
 
 func (i *instances) InstanceTypeByProviderID(ctx context.Context, providerID string) (string, error) {
