@@ -136,7 +136,11 @@ func (i *instances) InstanceType(ctx context.Context, nodeName types.NodeName) (
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
 
-	return strings.ReplaceAll(server.Product, " ", "-"), nil
+	fmt.Println("instance type")
+	fmt.Println(server.Product)
+	str := strings.ReplaceAll(server.Product, " ", "-")
+	fmt.Println(str)
+	return str, nil
 }
 
 func (i *instances) InstanceTypeByProviderID(ctx context.Context, providerID string) (string, error) {
@@ -159,7 +163,12 @@ func (i *instances) InstanceTypeByProviderID(ctx context.Context, providerID str
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
-	return server.Product, nil
+
+	fmt.Println("instance type")
+	fmt.Println(server.Product)
+	str := strings.ReplaceAll(server.Product, " ", "-")
+	fmt.Println(str)
+	return str, nil
 }
 
 func (i *instances) AddSSHKeyToAllInstances(ctx context.Context, user string, keyData []byte) error {
