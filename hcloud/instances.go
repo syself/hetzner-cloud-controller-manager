@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
@@ -139,7 +140,9 @@ func (i *instances) InstanceType(ctx context.Context, nodeName types.NodeName) (
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
-	return server.Product, nil
+
+	// Avoid spaces as this is not allowed in Kubernetes labels
+	return strings.ReplaceAll(server.Product, " ", "-"), nil
 }
 
 func (i *instances) InstanceTypeByProviderID(ctx context.Context, providerID string) (string, error) {
@@ -163,7 +166,9 @@ func (i *instances) InstanceTypeByProviderID(ctx context.Context, providerID str
 	if err != nil {
 		return "", fmt.Errorf("%s: %w", op, err)
 	}
-	return server.Product, nil
+
+	// Avoid spaces as this is not allowed in Kubernetes labels
+	return strings.ReplaceAll(server.Product, " ", "-"), nil
 }
 
 func (i *instances) AddSSHKeyToAllInstances(ctx context.Context, user string, keyData []byte) error {
