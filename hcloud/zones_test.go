@@ -67,10 +67,10 @@ func TestGetZone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if zone.Region != "fsn1" {
+	if zone.Region != "eu-central" {
 		t.Errorf("Unexpected zone.Region: %s", zone.Region)
 	}
-	if zone.FailureDomain != "eu-central" {
+	if zone.FailureDomain != "fsn1" {
 		t.Errorf("Unexpected zone.FailureDomain: %s", zone.FailureDomain)
 	}
 
@@ -79,10 +79,10 @@ func TestGetZone(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if zone.Region != "fsn1" {
+	if zone.Region != "eu-central" {
 		t.Errorf("Unexpected zone.Region: %s", zone.Region)
 	}
-	if zone.FailureDomain != "eu-central" {
+	if zone.FailureDomain != "fsn1-dc1" {
 		t.Errorf("Unexpected zone.FailureDomain: %s", zone.FailureDomain)
 	}
 }
@@ -129,10 +129,10 @@ func TestGetZoneForServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if zone.Region != "fsn1" {
+	if zone.Region != "eu-central" {
 		t.Errorf("Unexpected zone.Region: %s", zone.Region)
 	}
-	if zone.FailureDomain != "eu-central" {
+	if zone.FailureDomain != "fsn1" {
 		t.Errorf("Unexpected zone.FailureDomain: %s", zone.FailureDomain)
 	}
 
@@ -140,10 +140,10 @@ func TestGetZoneForServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if zone.Region != "fsn1" {
+	if zone.Region != "eu-central" {
 		t.Errorf("Unexpected zone.Region: %s", zone.Region)
 	}
-	if zone.FailureDomain != "eu-central" {
+	if zone.FailureDomain != "fsn1-dc1" {
 		t.Errorf("Unexpected zone.FailureDomain: %s", zone.FailureDomain)
 	}
 }
@@ -181,10 +181,10 @@ func TestGetZoneByProviderID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if zone.Region != "fsn1" {
+	if zone.Region != "eu-central" {
 		t.Errorf("Unexpected zone.Region: %s", zone.Region)
 	}
-	if zone.FailureDomain != "eu-central" {
+	if zone.FailureDomain != "fsn1" {
 		t.Errorf("Unexpected zone.FailureDomain: %s", zone.FailureDomain)
 	}
 
@@ -192,10 +192,10 @@ func TestGetZoneByProviderID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
-	if zone.Region != "fsn1" {
+	if zone.Region != "eu-central" {
 		t.Errorf("Unexpected zone.Region: %s", zone.Region)
 	}
-	if zone.FailureDomain != "eu-central" {
+	if zone.FailureDomain != "fsn1" {
 		t.Errorf("Unexpected zone.FailureDomain: %s", zone.FailureDomain)
 	}
 }
