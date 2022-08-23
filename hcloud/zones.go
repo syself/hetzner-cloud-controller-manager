@@ -117,26 +117,25 @@ func (z zones) GetZoneByNodeName(ctx context.Context, nodeName types.NodeName) (
 }
 
 func zoneFromHCloudServer(server *hcloud.Server) cloudprovider.Zone {
-	region := server.Datacenter.Location.Name
+	location := server.Datacenter.Location.Name
 	return cloudprovider.Zone{
-		Region:        region,
-		FailureDomain: failureDomainFromRegion(region),
+		Region:        regionFromLocation(location),
+		FailureDomain: location,
 	}
 }
 
 func zoneFromRobotServer(server *models.Server) cloudprovider.Zone {
-	region := strings.ToLower(server.Dc[:4])
 	return cloudprovider.Zone{
-		Region:        region,
-		FailureDomain: failureDomainFromRegion(region),
+		Region:        regionFromLocation(strings.ToLower(server.Dc[:4])),
+		FailureDomain: strings.ToLower(server.Dc),
 	}
 }
 
-func failureDomainFromRegion(region string) string {
+func regionFromLocation(location string) string {
 	return map[string]string{
 		"nbg1": "eu-central",
 		"fsn1": "eu-central",
 		"hel1": "eu-central",
 		"ash":  "us-east",
-	}[region]
+	}[location]
 }
