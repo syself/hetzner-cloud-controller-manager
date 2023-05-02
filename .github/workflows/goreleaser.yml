@@ -19,7 +19,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
-          go-version: 1.20
+          go-version: 'stable'
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v2
@@ -46,7 +46,7 @@ jobs:
         #  DOCKER_USER: ${{ secrets.DOCKER_USER }}
         #  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
-           docker push ghcr.io/syself/hetzner-cloud-controller-manager:v1.14.0-beta1 # TODO change "v1.14.0-betaX" to "latest"
+           docker push ghcr.io/syself/hetzner-cloud-controller-manager:v0.14.0-beta1 # TODO change "v0.14.0-betaX" to "latest"
       - name: Run GoReleaser for tag
         if: "startsWith(github.ref, 'refs/tags/')"
         uses: goreleaser/goreleaser-action@v4
