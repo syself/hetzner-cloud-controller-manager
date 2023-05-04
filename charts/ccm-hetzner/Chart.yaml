@@ -1,4 +1,5 @@
 apiVersion: v2
 name: hetzner-cloud-controller-manager
+description: Hetzner cloud-controller-manager by Syself
 type: application
-version: 0.14.0-beta1
+version: 0.14.0-beta2
