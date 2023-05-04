@@ -57,10 +57,11 @@ release:
     - glob: "./deploy/ccm*.yaml"
     - glob: "./hetzner-cloud-controller-manager-*.tgz"
 
-publishers:
-  - name: helm-chart-repo
-    ids: # make sure that this is only executed once by filtering for *one arbitrary* artifact ID
-      - deployment-yamls
-    cmd: ./scripts/publish-helm-chart.sh hetzner-cloud-controller-manager-{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}.tgz
-    env:
-      - CHART_REPO_REMOTE={{ .Env.CHART_REPO_REMOTE }}
+# via https://github.com/syself/charts
+#publishers:
+#  - name: helm-chart-repo
+#    ids: # make sure that this is only executed once by filtering for *one arbitrary* artifact ID
+#      - deployment-yamls
+#    cmd: ./scripts/publish-helm-chart.sh hetzner-cloud-controller-manager-{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}.tgz
+#    env:
+#      - CHART_REPO_REMOTE={{ .Env.CHART_REPO_REMOTE }}
