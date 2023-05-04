@@ -46,7 +46,7 @@ jobs:
           version: latest
           args: release --snapshot --clean
         env:
-          GORELEASER_CURRENT_TAG: "v0.14.0-beta2"
+          GORELEASER_CURRENT_TAG: "v0.14.0-beta.3"
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       - name: Publish latest snapshot image
         if: "!startsWith(github.ref, 'refs/tags/')"
@@ -54,7 +54,7 @@ jobs:
         #  DOCKER_USER: ${{ secrets.DOCKER_USER }}
         #  DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
-           #docker push ghcr.io/syself/hetzner-cloud-controller-manager:v0.14.0-beta2 # TODO change "v0.14.0-betaX" to "latest"
+           #docker push ghcr.io/syself/hetzner-cloud-controller-manager:v0.14.0-beta.3 # TODO change "v0.14.0-betaX" to "latest"
            docker images --format "{{.Repository}}:{{.Tag}}" | grep hetzner-cloud-controller-manager:0.14.0-beta2 | xargs -I {} docker push {}
       - name: Run GoReleaser for tag
         if: "startsWith(github.ref, 'refs/tags/')"
