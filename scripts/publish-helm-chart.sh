@@ -4,7 +4,7 @@ set -e
 set -o pipefail
 
 CHART_REPO_REMOTE=${CHART_REPO_REMOTE:-"https://github.com/hetznercloud/helm-charts.git"}
-CHART_REPO_BRANCH=${CHART_REPO_BRANCH:-"new-rebase"}
+CHART_REPO_BRANCH=${CHART_REPO_BRANCH:-"main"}
 
 CHART_FILE="$1"
 
