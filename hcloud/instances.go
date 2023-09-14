@@ -118,7 +118,7 @@ func (i *instances) InstanceID(ctx context.Context, nodeName types.NodeName) (st
 
 	server, err := getRobotServerByName(ctx, i.robotClient, string(nodeName))
 	if err != nil {
-		return "", fmt.Errorf("%s: %w", op, err)
+		return "", err
 	}
 
 	return hostNamePrefixRobot + strconv.Itoa(server.ServerNumber), nil
@@ -272,7 +272,6 @@ func (i *instances) hcloudNodeAddresses(ctx context.Context, server *hcloud.Serv
 					)
 				}
 			}
-
 		}
 	}
 	return addresses
