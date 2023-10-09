@@ -132,7 +132,7 @@ func (c *AllServersCache) getCache(getSrv func() (*hcloud.Server, bool)) (*hclou
 
 	c.lastRefresh = time.Now()
 
-	klog.Infof("AllServersCache.getCache(): c=%+v", c)
+	// klog.Infof("AllServersCache.getCache(): c=%+v", c)
 
 	// Re-try to find the server after the reload.
 	if srv, ok := getSrv(); ok {
