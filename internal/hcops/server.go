@@ -62,13 +62,18 @@ func (c *AllServersCache) ByName(name string) (*hcloud.Server, error) {
 	const op = "hcops/AllServersCache.ByName"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
 
+	// klog.Infof("AllServersCache.ByName(): name=%s", name)
+
 	srv, err := c.getCache(func() (*hcloud.Server, bool) {
 		srv, ok := c.byName[name]
 		return srv, ok
 	})
+
 	if err != nil {
 		return nil, fmt.Errorf("%s: %s %w", op, name, err)
 	}
+
+	// klog.Infof("AllServersCache.ByName(): srv=%+v", srv)
 
 	return srv, nil
 }
@@ -126,6 +131,8 @@ func (c *AllServersCache) getCache(getSrv func() (*hcloud.Server, bool)) (*hclou
 	}
 
 	c.lastRefresh = time.Now()
+
+	klog.Infof("AllServersCache.getCache(): c=%+v", c)
 
 	// Re-try to find the server after the reload.
 	if srv, ok := getSrv(); ok {

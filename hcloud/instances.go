@@ -228,8 +228,15 @@ func robotNodeAddresses(addressFamily addressFamily, server *models.Server) []co
 	if addressFamily == AddressFamilyIPv4 || addressFamily == AddressFamilyDualStack {
 		addresses = append(
 			addresses,
-			corev1.NodeAddress{Type: corev1.NodeExternalIP, Address: server.ServerIP},
+			corev1.NodeAddress{Type: corev1.NodeInternalIP, Address: server.ServerIP},
 		)
+
+		if len(server.IP) > 1 {
+			addresses = append(
+				addresses,
+				corev1.NodeAddress{Type: corev1.NodeExternalIP, Address: server.IP[1]},
+			)
+		}
 	}
 
 	return addresses
