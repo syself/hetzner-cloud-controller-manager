@@ -66,7 +66,7 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		return nil, fmt.Errorf("%s: rate limit exceeded - next try at %q", op, hcops.TimeOfNextPossibleAPICall().String())
 	}
 
-	// klog.Infof("getRobotServerByName(): name=%q", name)
+	klog.Infof("getRobotServerByName(): name=%q", name)
 
 	serverList, err := c.ServerGetList()
 	if err != nil {
@@ -111,7 +111,7 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (*model
 		return nil, errMissingRobotCredentials
 	}
 
-	// klog.Infof("getRobotServerByID(): id=%d", id)
+	klog.Infof("getRobotServerByID(): id=%d", id)
 
 	// check for rate limit
 	if hcops.IsRateLimitExceeded(node) {
@@ -122,11 +122,6 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (*model
 	if err != nil && !models.IsError(err, models.ErrorCodeServerNotFound) {
 		hcops.HandleRateLimitExceededError(err, node)
 		return nil, fmt.Errorf("%s: %w", op, err)
-	}
-
-	// check whether name matches - otherwise this server does not belong to the respective node anymore
-	if server.Name != node.Name {
-		return nil, nil
 	}
 
 	sname_arr := strings.Split(server.Name, "/")
@@ -145,7 +140,12 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (*model
 		server.ServerIP = sip
 	}
 
-	// klog.Infof("getRobotServerByID(): server=%+v", server)
+	// check whether name matches - otherwise this server does not belong to the respective node anymore
+	if server.Name != node.Name {
+		return nil, nil
+	}
+
+	klog.Infof("getRobotServerByID(): server=%+v", server)
 
 	// return nil, nil if server could not be found
 	return server, nil
