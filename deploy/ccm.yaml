@@ -76,7 +76,7 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: spec.nodeName
-          image: quay.io/syself/hetzner-cloud-controller-manager:v1.18.0-0.0.5 # x-release-please-version
+          image: registry.gitlab.com/embase/embase/hetzner-cloud-controller-manager # x-release-please-version
           ports:
             - name: metrics
               containerPort: 8233
