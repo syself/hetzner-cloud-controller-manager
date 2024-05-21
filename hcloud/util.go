@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"regexp"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
@@ -156,7 +157,7 @@ func getInstanceTypeOfRobotServer(bmServer *models.Server) string {
 	if bmServer == nil {
 		panic("getInstanceTypeOfRobotServer called with nil server")
 	}
-	return strings.ReplaceAll(bmServer.Product, " ", "-")
+	return regexp.MustCompile(`[^a-zA-Z0-9_.-]+`).ReplaceAllString(strings.ReplaceAll(bmServer.Product, " ", "-"), "")
 }
 
 func getZoneOfRobotServer(bmServer *models.Server) string {
