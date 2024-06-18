@@ -173,7 +173,7 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 			klog.Info("Enabled robot API debugging")
 		} else {
 			c = hrobot.NewBasicAuthClient(robotUserName, robotPassword)
-			klog.Infof("Not enabling robot API debugging. Set %s=true to enable it.", robotDebugENVVar)
+			klog.Infof("Not enabling robot API debugging. Set env var %s=true to enable it.", robotDebugENVVar)
 		}
 		robotClient = cache.NewClient(c, cacheTimeout)
 	} else {
