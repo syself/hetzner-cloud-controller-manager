@@ -5,14 +5,15 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
+
+	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 // LoadBalancerOps defines the Load Balancer related operations required by
@@ -30,15 +31,14 @@ type LoadBalancerOps interface {
 
 type loadBalancers struct {
 	lbOps                        LoadBalancerOps
-	ac                           hcops.HCloudActionClient // Deprecated: should only be referenced by hcops types
 	disablePrivateIngressDefault bool
 	disableIPv6Default           bool
+	useProxyProtocolDefault      bool
 }
 
-func newLoadBalancers(lbOps LoadBalancerOps, ac hcops.HCloudActionClient, disablePrivateIngressDefault bool, disableIPv6Default bool) *loadBalancers {
+func newLoadBalancers(lbOps LoadBalancerOps, disablePrivateIngressDefault bool, disableIPv6Default bool) *loadBalancers {
 	return &loadBalancers{
 		lbOps:                        lbOps,
-		ac:                           ac,
 		disablePrivateIngressDefault: disablePrivateIngressDefault,
 		disableIPv6Default:           disableIPv6Default,
 	}
@@ -87,23 +87,12 @@ func (l *loadBalancers) GetLoadBalancer(
 		}, true, nil
 	}
 
-	ingresses := []corev1.LoadBalancerIngress{
-		{
-			IP: lb.PublicNet.IPv4.IP.String(),
-		},
-	}
-
-	disableIPV6, err := l.getDisableIPv6(service)
+	ingress, err := l.buildLoadBalancerStatusIngress(lb, service)
 	if err != nil {
 		return nil, false, fmt.Errorf("%s: %v", op, err)
 	}
-	if !disableIPV6 {
-		ingresses = append(ingresses, corev1.LoadBalancerIngress{
-			IP: lb.PublicNet.IPv6.IP.String(),
-		})
-	}
 
-	return &corev1.LoadBalancerStatus{Ingress: ingresses}, true, nil
+	return &corev1.LoadBalancerStatus{Ingress: ingress}, true, nil
 }
 
 func (l *loadBalancers) GetLoadBalancerName(_ context.Context, _ string, service *corev1.Service) string {
@@ -172,6 +161,21 @@ func (l *loadBalancers) EnsureLoadBalancer(
 	}
 	reload = reload || lbChanged
 
+	// Reload early here if reload is true.
+	// If the load balancer private network ip changed,
+	// the load balancer would be detached and re-attached to the network
+	// As a result all of the private network targets would have been
+	// removed and we should make sure the lb state here matches the actual
+	// lb state so that we can re-attach the targets if needed
+	if reload {
+		klog.InfoS("reload HC Load Balancer", "op", op, "loadBalancerID", lb.ID)
+		lb, err = l.lbOps.GetByID(ctx, lb.ID)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
+		reload = false
+	}
+
 	servicesChanged, err := l.lbOps.ReconcileHCLBServices(ctx, lb, svc)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
@@ -204,7 +208,29 @@ func (l *loadBalancers) EnsureLoadBalancer(
 		}, nil
 	}
 
+	ingress, err := l.buildLoadBalancerStatusIngress(lb, svc)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	return &corev1.LoadBalancerStatus{Ingress: ingress}, nil
+}
+
+func (l *loadBalancers) buildLoadBalancerStatusIngress(lb *hcloud.LoadBalancer, svc *corev1.Service) ([]corev1.LoadBalancerIngress, error) {
+	const op = "hcloud/loadBalancers.getLoadBalancerStatusIngress"
+	metrics.OperationCalled.WithLabelValues(op).Inc()
+
 	var ingress []corev1.LoadBalancerIngress
+	ipMode := corev1.LoadBalancerIPModeVIP
+
+	useProxyProtocol, err := l.getUseProxyProtocol(svc)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	if useProxyProtocol {
+		ipMode = corev1.LoadBalancerIPModeProxy
+	}
 
 	disablePubNet, err := annotation.LBDisablePublicNetwork.BoolFromService(svc)
 	if err != nil && !errors.Is(err, annotation.ErrNotSet) {
@@ -212,14 +238,20 @@ func (l *loadBalancers) EnsureLoadBalancer(
 	}
 
 	if !disablePubNet {
-		ingress = append(ingress, corev1.LoadBalancerIngress{IP: lb.PublicNet.IPv4.IP.String()})
+		ingress = append(ingress, corev1.LoadBalancerIngress{
+			IP:     lb.PublicNet.IPv4.IP.String(),
+			IPMode: &ipMode,
+		})
 
 		disableIPV6, err := l.getDisableIPv6(svc)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 		if !disableIPV6 {
-			ingress = append(ingress, corev1.LoadBalancerIngress{IP: lb.PublicNet.IPv6.IP.String()})
+			ingress = append(ingress, corev1.LoadBalancerIngress{
+				IP:     lb.PublicNet.IPv6.IP.String(),
+				IPMode: &ipMode,
+			})
 		}
 	}
 
@@ -227,13 +259,17 @@ func (l *loadBalancers) EnsureLoadBalancer(
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+
 	if !disablePrivIngress {
-		for _, nw := range lb.PrivateNet {
-			ingress = append(ingress, corev1.LoadBalancerIngress{IP: nw.IP.String()})
+		for _, privateNet := range lb.PrivateNet {
+			ingress = append(ingress, corev1.LoadBalancerIngress{
+				IP:     privateNet.IP.String(),
+				IPMode: &ipMode,
+			})
 		}
 	}
 
-	return &corev1.LoadBalancerStatus{Ingress: ingress}, nil
+	return ingress, nil
 }
 
 func (l *loadBalancers) getDisablePrivateIngress(svc *corev1.Service) (bool, error) {
@@ -243,6 +279,17 @@ func (l *loadBalancers) getDisablePrivateIngress(svc *corev1.Service) (bool, err
 	}
 	if errors.Is(err, annotation.ErrNotSet) {
 		return l.disablePrivateIngressDefault, nil
+	}
+	return false, err
+}
+
+func (l *loadBalancers) getUseProxyProtocol(svc *corev1.Service) (bool, error) {
+	disable, err := annotation.LBSvcProxyProtocol.BoolFromService(svc)
+	if err == nil {
+		return disable, nil
+	}
+	if errors.Is(err, annotation.ErrNotSet) {
+		return l.useProxyProtocolDefault, nil
 	}
 	return false, err
 }
@@ -298,7 +345,6 @@ func (l *loadBalancers) UpdateLoadBalancer(
 	if _, err = l.lbOps.ReconcileHCLB(ctx, lb, svc); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
-
 	if _, err = l.lbOps.ReconcileHCLBTargets(ctx, lb, svc, selectedNodes); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}

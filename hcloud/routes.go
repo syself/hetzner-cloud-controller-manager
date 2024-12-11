@@ -7,21 +7,32 @@ import (
 	"net"
 	"time"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
+	"golang.org/x/time/rate"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/client-go/tools/record"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
+
+	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+)
+
+var (
+	serversCacheMissRefreshRate = rate.Every(30 * time.Second)
 )
 
 type routes struct {
 	client      *hcloud.Client
 	network     *hcloud.Network
 	serverCache *hcops.AllServersCache
+	clusterCIDR *net.IPNet
+	recorder    record.EventRecorder
 }
 
-func newRoutes(client *hcloud.Client, networkID int64) (*routes, error) {
+func newRoutes(client *hcloud.Client, networkID int64, clusterCIDR string, recorder record.EventRecorder) (*routes, error) {
 	const op = "hcloud/newRoutes"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
 
@@ -33,15 +44,23 @@ func newRoutes(client *hcloud.Client, networkID int64) (*routes, error) {
 		return nil, fmt.Errorf("network not found: %d", networkID)
 	}
 
+	_, cidr, err := net.ParseCIDR(clusterCIDR)
+	if err != nil {
+		return nil, err
+	}
+
 	return &routes{
 		client:  client,
 		network: networkObj,
 		serverCache: &hcops.AllServersCache{
 			// client.Server.All will load ALL the servers in the project, even those
 			// that are not part of the Kubernetes cluster.
-			LoadFunc: client.Server.All,
-			Network:  networkObj,
+			LoadFunc:                client.Server.All,
+			Network:                 networkObj,
+			CacheMissRefreshLimiter: rate.NewLimiter(serversCacheMissRefreshRate, 1),
 		},
+		clusterCIDR: cidr,
+		recorder:    recorder,
 	}, nil
 }
 
@@ -102,7 +121,7 @@ func (r *routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 
 		privNet, ok = findServerPrivateNetByID(srv, r.network.ID)
 		if !ok {
-			return fmt.Errorf("%s: server %v: network with id %d not attached to this server ", op, route.TargetNode, r.network.ID)
+			return fmt.Errorf("%s: server %v: network with id %d not attached to this server", op, route.TargetNode, r.network.ID)
 		}
 	}
 	ip := privNet.IP
@@ -110,6 +129,34 @@ func (r *routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 	_, cidr, err := net.ParseCIDR(route.DestinationCIDR)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	clusterNetSize, _ := r.clusterCIDR.Mask.Size()
+	destNetSize, _ := cidr.Mask.Size()
+
+	if !(r.clusterCIDR.Contains(cidr.IP) && destNetSize >= clusterNetSize) {
+		node := &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      string(route.TargetNode),
+				Namespace: "",
+			},
+		}
+		// Event is only visible via `kubectl get events` and not `kubectl describe node`,
+		// as we do not have the UID here and `kubectl describe node` filters by UID.
+		// Because of this behavior we are also dispatching a log message.
+		r.recorder.Eventf(
+			node,
+			corev1.EventTypeWarning,
+			"ClusterCIDRMisconfigured",
+			"route CIDR %s is not contained within cluster CIDR %s",
+			route.DestinationCIDR,
+			r.clusterCIDR.String(),
+		)
+		klog.Warningf(
+			"route CIDR %s is not contained within cluster CIDR %s",
+			route.DestinationCIDR,
+			r.clusterCIDR.String(),
+		)
 	}
 
 	doesRouteAlreadyExist, err := r.checkIfRouteAlreadyExists(ctx, route)
@@ -126,7 +173,7 @@ func (r *routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 		}
 		action, _, err := r.client.Network.AddRoute(ctx, r.network, opts)
 		if err != nil {
-			if hcloud.IsError(err, hcloud.ErrorCodeLocked) || hcloud.IsError(err, hcloud.ErrorCodeConflict) {
+			if hcloud.IsError(err, hcloud.ErrorCodeLocked, hcloud.ErrorCodeConflict) {
 				retryDelay := time.Second * 5
 				klog.InfoS("retry due to conflict or lock",
 					"op", op, "delay", fmt.Sprintf("%v", retryDelay), "err", fmt.Sprintf("%v", err))
@@ -137,7 +184,7 @@ func (r *routes) CreateRoute(ctx context.Context, clusterName string, nameHint s
 			return fmt.Errorf("%s: %w", op, err)
 		}
 
-		if err := hcops.WatchAction(ctx, &r.client.Action, action); err != nil {
+		if err := r.client.Action.WaitFor(ctx, action); err != nil {
 			return fmt.Errorf("%s: %w", op, err)
 		}
 	}
@@ -187,7 +234,7 @@ func (r *routes) deleteRouteFromHcloud(ctx context.Context, cidr *net.IPNet, ip 
 
 	action, _, err := r.client.Network.DeleteRoute(ctx, r.network, opts)
 	if err != nil {
-		if hcloud.IsError(err, hcloud.ErrorCodeLocked) || hcloud.IsError(err, hcloud.ErrorCodeConflict) {
+		if hcloud.IsError(err, hcloud.ErrorCodeLocked, hcloud.ErrorCodeConflict) {
 			retryDelay := time.Second * 5
 			klog.InfoS("retry due to conflict or lock",
 				"op", op, "delay", fmt.Sprintf("%v", retryDelay), "err", fmt.Sprintf("%v", err))
@@ -197,7 +244,7 @@ func (r *routes) deleteRouteFromHcloud(ctx context.Context, cidr *net.IPNet, ip 
 		}
 		return fmt.Errorf("%s: %w", op, err)
 	}
-	if err := hcops.WatchAction(ctx, &r.client.Action, action); err != nil {
+	if err := r.client.Action.WaitFor(ctx, action); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
 	return nil
@@ -255,7 +302,7 @@ func (r *routes) checkIfRouteAlreadyExists(ctx context.Context, route *cloudprov
 					return false, fmt.Errorf("%s: %w", op, err)
 				}
 
-				if err := hcops.WatchAction(ctx, &r.client.Action, action); err != nil {
+				if err := r.client.Action.WaitFor(ctx, action); err != nil {
 					return false, fmt.Errorf("%s: %w", op, err)
 				}
 			}

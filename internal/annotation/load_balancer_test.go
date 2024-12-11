@@ -5,10 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/stretchr/testify/assert"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 func TestLBToService_AddAnnotations(t *testing.T) {
@@ -158,7 +159,6 @@ func TestLBToService_AddAnnotations(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := annotation.LBToService(&tt.svc, &tt.lb)
 			assert.NoError(t, err)

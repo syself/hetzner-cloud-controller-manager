@@ -2,73 +2,73 @@ package mocks
 
 import (
 	"github.com/stretchr/testify/mock"
-	"github.com/syself/hrobot-go/models"
+	hrobotmodels "github.com/syself/hrobot-go/models"
 )
 
 type RobotClient struct {
 	mock.Mock
 }
 
-func (m *RobotClient) ServerGetList() ([]models.Server, error) {
+func (m *RobotClient) ServerGetList() ([]hrobotmodels.Server, error) {
 	args := m.Called()
 	return getRobotServers(args, 0), args.Error(1)
 }
 
-func (m *RobotClient) BootLinuxDelete(id int) (*models.Linux, error) {
+func (m *RobotClient) BootLinuxDelete(id int) (*hrobotmodels.Linux, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) BootLinuxGet(id int) (*models.Linux, error) {
+func (m *RobotClient) BootLinuxGet(id int) (*hrobotmodels.Linux, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) BootLinuxSet(id int, input *models.LinuxSetInput) (*models.Linux, error) {
+func (m *RobotClient) BootLinuxSet(id int, input *hrobotmodels.LinuxSetInput) (*hrobotmodels.Linux, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) BootRescueDelete(id int) (*models.Rescue, error) {
+func (m *RobotClient) BootRescueDelete(id int) (*hrobotmodels.Rescue, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) BootRescueGet(id int) (*models.Rescue, error) {
+func (m *RobotClient) BootRescueGet(id int) (*hrobotmodels.Rescue, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) BootRescueSet(id int, input *models.RescueSetInput) (*models.Rescue, error) {
+func (m *RobotClient) BootRescueSet(id int, input *hrobotmodels.RescueSetInput) (*hrobotmodels.Rescue, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) FailoverGet(ip string) (*models.Failover, error) {
+func (m *RobotClient) FailoverGet(ip string) (*hrobotmodels.Failover, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) FailoverGetList() ([]models.Failover, error) {
+func (m *RobotClient) FailoverGetList() ([]hrobotmodels.Failover, error) {
 	panic("this method should not be called")
 }
 func (m *RobotClient) GetVersion() string {
 	panic("this method should not be called")
 }
-func (m *RobotClient) IPGetList() ([]models.IP, error) {
+func (m *RobotClient) IPGetList() ([]hrobotmodels.IP, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) KeyGetList() ([]models.Key, error) {
+func (m *RobotClient) KeyGetList() ([]hrobotmodels.Key, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) KeySet(input *models.KeySetInput) (*models.Key, error) {
+func (m *RobotClient) KeySet(input *hrobotmodels.KeySetInput) (*hrobotmodels.Key, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) RDnsGet(ip string) (*models.Rdns, error) {
+func (m *RobotClient) RDnsGet(ip string) (*hrobotmodels.Rdns, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) RDnsGetList() ([]models.Rdns, error) {
+func (m *RobotClient) RDnsGetList() ([]hrobotmodels.Rdns, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) ResetGet(id int) (*models.Reset, error) {
+func (m *RobotClient) ResetGet(id int) (*hrobotmodels.Reset, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) ResetSet(id int, input *models.ResetSetInput) (*models.ResetPost, error) {
+func (m *RobotClient) ResetSet(id int, input *hrobotmodels.ResetSetInput) (*hrobotmodels.ResetPost, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) ServerGet(id int) (*models.Server, error) {
+func (m *RobotClient) ServerGet(id int) (*hrobotmodels.Server, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) ServerReverse(id int) (*models.Cancellation, error) {
+func (m *RobotClient) ServerReverse(id int) (*hrobotmodels.Cancellation, error) {
 	panic("this method should not be called")
 }
-func (m *RobotClient) ServerSetName(id int, input *models.ServerSetNameInput) (*models.Server, error) {
+func (m *RobotClient) ServerSetName(id int, input *hrobotmodels.ServerSetNameInput) (*hrobotmodels.Server, error) {
 	panic("this method should not be called")
 }
 func (m *RobotClient) SetBaseURL(baseURL string) {

@@ -6,15 +6,18 @@ import (
 	"net/http"
 	"testing"
 
+	cloudprovider "k8s.io/cloud-provider"
+
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/schema"
-	cloudprovider "k8s.io/cloud-provider"
 )
+
+const DefaultClusterCIDR = "10.244.0.0/16"
 
 func TestRoutes_CreateRoute(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerListResponse{
 			Servers: []schema.Server{
 				{
@@ -30,7 +33,7 @@ func TestRoutes_CreateRoute(t *testing.T) {
 			},
 		})
 	})
-	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.NetworkGetResponse{
 			Network: schema.Network{
 				ID:      1,
@@ -39,12 +42,14 @@ func TestRoutes_CreateRoute(t *testing.T) {
 			},
 		})
 	})
-	env.Mux.HandleFunc("/actions/1", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(schema.NetworkActionAddRouteResponse{
-			Action: schema.Action{
-				ID:       1,
-				Status:   string(hcloud.ActionStatusSuccess),
-				Progress: 100,
+	env.Mux.HandleFunc("/actions", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(schema.ActionListResponse{
+			Actions: []schema.Action{
+				{
+					ID:       1,
+					Status:   string(hcloud.ActionStatusSuccess),
+					Progress: 100,
+				},
 			},
 		})
 	})
@@ -67,7 +72,7 @@ func TestRoutes_CreateRoute(t *testing.T) {
 			},
 		})
 	})
-	routes, err := newRoutes(env.Client, 1)
+	routes, err := newRoutes(env.Client, 1, DefaultClusterCIDR, env.Recorder)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -85,7 +90,7 @@ func TestRoutes_CreateRoute(t *testing.T) {
 func TestRoutes_ListRoutes(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerListResponse{
 			Servers: []schema.Server{
 				{
@@ -101,7 +106,7 @@ func TestRoutes_ListRoutes(t *testing.T) {
 			},
 		})
 	})
-	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.NetworkGetResponse{
 			Network: schema.Network{
 				ID:      1,
@@ -116,7 +121,7 @@ func TestRoutes_ListRoutes(t *testing.T) {
 			},
 		})
 	})
-	routes, err := newRoutes(env.Client, 1)
+	routes, err := newRoutes(env.Client, 1, DefaultClusterCIDR, env.Recorder)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -139,7 +144,7 @@ func TestRoutes_ListRoutes(t *testing.T) {
 func TestRoutes_DeleteRoute(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.NetworkGetResponse{
 			Network: schema.Network{
 				ID:      1,
@@ -154,12 +159,14 @@ func TestRoutes_DeleteRoute(t *testing.T) {
 			},
 		})
 	})
-	env.Mux.HandleFunc("/actions/1", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(schema.NetworkActionAddRouteResponse{
-			Action: schema.Action{
-				ID:       1,
-				Status:   string(hcloud.ActionStatusSuccess),
-				Progress: 100,
+	env.Mux.HandleFunc("/actions", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(schema.ActionListResponse{
+			Actions: []schema.Action{
+				{
+					ID:       1,
+					Status:   string(hcloud.ActionStatusSuccess),
+					Progress: 100,
+				},
 			},
 		})
 	})
@@ -182,7 +189,7 @@ func TestRoutes_DeleteRoute(t *testing.T) {
 			},
 		})
 	})
-	routes, err := newRoutes(env.Client, 1)
+	routes, err := newRoutes(env.Client, 1, DefaultClusterCIDR, env.Recorder)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}

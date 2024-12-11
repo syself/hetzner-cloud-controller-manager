@@ -24,12 +24,14 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
-	"github.com/hetznercloud/hcloud-go/v2/hcloud/schema"
-	"github.com/syself/hrobot-go/models"
+	hrobotmodels "github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cloudprovider "k8s.io/cloud-provider"
+
+	"github.com/syself/hetzner-cloud-controller-manager/internal/config"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud/schema"
 )
 
 // TestInstances_InstanceExists also tests [lookupServer]. The other tests
@@ -37,7 +39,7 @@ import (
 func TestInstances_InstanceExists(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerGetResponse{
 			Server: schema.Server{
 				ID:   1,
@@ -45,7 +47,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 			},
 		})
 	})
-	env.Mux.HandleFunc("/servers/2", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/2", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(schema.ErrorResponse{Error: schema.Error{Code: string(hcloud.ErrorCodeNotFound)}})
@@ -57,38 +59,37 @@ func TestInstances_InstanceExists(t *testing.T) {
 		}
 		json.NewEncoder(w).Encode(schema.ServerListResponse{Servers: servers})
 	})
-
-	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(models.ServerResponse{
-			Server: models.Server{
-				ServerIP:      "123.123.123.123",
+	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(hrobotmodels.ServerResponse{
+			Server: hrobotmodels.Server{
+				ServerIP:      "233.252.0.123",
 				ServerIPv6Net: "2a01:f48:111:4221::",
 				ServerNumber:  321,
-				Name:          "bm-server1",
+				Name:          "robot-server1",
 			},
 		})
 	})
 
-	env.Mux.HandleFunc("/robot/server/322", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/robot/server/322", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(schema.ErrorResponse{Error: schema.Error{Code: string(models.ErrorCodeServerNotFound)}})
+		json.NewEncoder(w).Encode(schema.ErrorResponse{Error: schema.Error{Code: string(hrobotmodels.ErrorCodeServerNotFound)}})
 	})
 
-	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode([]models.ServerResponse{
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]hrobotmodels.ServerResponse{
 			{
-				Server: models.Server{
-					ServerIP:      "123.123.123.123",
+				Server: hrobotmodels.Server{
+					ServerIP:      "233.252.0.123",
 					ServerIPv6Net: "2a01:f48:111:4221::",
 					ServerNumber:  321,
-					Name:          "bm-server1",
+					Name:          "robot-server1",
 				},
 			},
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, env.Recorder, config.AddressFamilyIPv4, 0)
 
 	tests := []struct {
 		name     string
@@ -104,6 +105,19 @@ func TestInstances_InstanceExists(t *testing.T) {
 		}, {
 			name: "existing robot server by id",
 			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "robot-server1",
+				},
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://321"},
+			},
+			expected: true,
+		},
+		{
+			name: "existing robot server by (legacy) id",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "robot-server1",
+				},
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-321"},
 			},
 			expected: true,
@@ -115,6 +129,12 @@ func TestInstances_InstanceExists(t *testing.T) {
 			expected: false,
 		}, {
 			name: "missing robot server by id",
+			node: &corev1.Node{
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://322"},
+			},
+			expected: false,
+		}, {
+			name: "missing robot server by (legacy) id",
 			node: &corev1.Node{
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-322"},
 			},
@@ -131,7 +151,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 			name: "existing robot server by name",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "bm-server1",
+					Name: "robot-server1",
 				},
 			},
 			expected: true,
@@ -147,7 +167,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 			name: "missing robot server by name",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "bm-barfoo",
+					Name: "robot-barfoo",
 				},
 			},
 			expected: false,
@@ -170,7 +190,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 func TestInstances_InstanceShutdown(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerGetResponse{
 			Server: schema.Server{
 				ID:     1,
@@ -179,7 +199,7 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 			},
 		})
 	})
-	env.Mux.HandleFunc("/servers/2", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/2", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerGetResponse{
 			Server: schema.Server{
 				ID:     2,
@@ -189,18 +209,57 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 		})
 	})
 
-	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(models.ServerResponse{
-			Server: models.Server{
-				ServerIP:      "123.123.123.123",
+	instances := newInstances(env.Client, env.RobotClient, env.Recorder, config.AddressFamilyIPv4, 0)
+	env.Mux.HandleFunc("/robot/server/3", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(hrobotmodels.ServerResponse{
+			Server: hrobotmodels.Server{
+				ServerIP:      "233.252.0.123",
 				ServerIPv6Net: "2a01:f48:111:4221::",
-				ServerNumber:  321,
-				Name:          "bm-server1",
+				ServerNumber:  3,
+				Name:          "robot-server3",
 			},
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	env.Mux.HandleFunc("/robot/server/4", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(hrobotmodels.ServerResponse{
+			Server: hrobotmodels.Server{
+				ServerIP:      "233.252.0.123",
+				ServerIPv6Net: "2a01:f48:111:4221::",
+				ServerNumber:  4,
+				Name:          "robot-server4",
+			},
+		})
+	})
+
+	env.Mux.HandleFunc("/robot/server/5", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(hrobotmodels.ServerResponse{
+			Server: hrobotmodels.Server{
+				ServerIP:      "233.252.0.123",
+				ServerIPv6Net: "2a01:f48:111:4221::",
+				ServerNumber:  5,
+				Name:          "robot-server5",
+			},
+		})
+	})
+
+	env.Mux.HandleFunc("/robot/reset/3", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(hrobotmodels.ResetResponse{Reset: hrobotmodels.Reset{
+			OperatingStatus: "running",
+		}})
+	})
+
+	env.Mux.HandleFunc("/robot/reset/4", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(hrobotmodels.ResetResponse{Reset: hrobotmodels.Reset{
+			OperatingStatus: "shut down",
+		}})
+	})
+
+	env.Mux.HandleFunc("/robot/reset/5", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(hrobotmodels.ResetResponse{Reset: hrobotmodels.Reset{
+			OperatingStatus: "not supported",
+		}})
+	})
 
 	tests := []struct {
 		name     string
@@ -208,26 +267,47 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 		expected bool
 	}{
 		{
-			name: "running server",
+			name: "[cloud] running",
 			node: &corev1.Node{
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://1"},
 			},
 			expected: false,
 		}, {
-			name: "shutdown server",
+			name: "[cloud] shutdown",
 			node: &corev1.Node{
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://2"},
 			},
 			expected: true,
 		}, {
-			name: "bm server",
+			name: "[robot] running",
 			node: &corev1.Node{
-				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-321"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "robot-server3",
+				},
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://3"},
+			},
+			expected: false,
+		}, {
+			name: "[robot] shutdown",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "robot-server4",
+				},
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://4"},
+			},
+			expected: false,
+		},
+		{
+			name: "[robot] status unavailable",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "robot-server5",
+				},
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://5"},
 			},
 			expected: false,
 		},
 	}
-
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			exists, err := instances.InstanceShutdown(context.TODO(), test.node)
@@ -244,7 +324,7 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 func TestInstances_InstanceMetadata(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerGetResponse{
 			Server: schema.Server{
 				ID:         1,
@@ -263,7 +343,7 @@ func TestInstances_InstanceMetadata(t *testing.T) {
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, env.Recorder, config.AddressFamilyIPv4, 0)
 
 	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
 		Spec: corev1.NodeSpec{ProviderID: "hcloud://1"},
@@ -281,6 +361,9 @@ func TestInstances_InstanceMetadata(t *testing.T) {
 		},
 		Zone:   "Test DC",
 		Region: "Test Location",
+		AdditionalLabels: map[string]string{
+			"instance.hetzner.cloud/provided-by": "cloud",
+		},
 	}
 
 	if !reflect.DeepEqual(metadata, expectedMetadata) {
@@ -291,37 +374,43 @@ func TestInstances_InstanceMetadata(t *testing.T) {
 func TestInstances_InstanceMetadataRobotServer(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(models.ServerResponse{
-			Server: models.Server{
-				ServerIP:      "123.123.123.123",
+	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(hrobotmodels.ServerResponse{
+			Server: hrobotmodels.Server{
+				ServerIP:      "233.252.0.123",
 				ServerIPv6Net: "2a01:f48:111:4221::",
 				ServerNumber:  321,
-				Product:       "bm-product 1",
-				Name:          "bm-server1",
+				Product:       "Robot Server™ 1",
+				Name:          "robot-server1",
 				Dc:            "NBG1-DC1",
 			},
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, env.Recorder, config.AddressFamilyIPv4, 0)
 
 	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
-		Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-321"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "robot-server1",
+		},
+		Spec: corev1.NodeSpec{ProviderID: "hrobot://321"},
 	})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 
 	expectedMetadata := &cloudprovider.InstanceMetadata{
-		ProviderID:   "hcloud://bm-321",
-		InstanceType: "bm-product-1",
+		ProviderID:   "hrobot://321",
+		InstanceType: "Robot-Server-1",
 		NodeAddresses: []corev1.NodeAddress{
-			{Type: corev1.NodeHostName, Address: "bm-server1"},
-			{Type: corev1.NodeExternalIP, Address: "123.123.123.123"},
+			{Type: corev1.NodeHostName, Address: "robot-server1"},
+			{Type: corev1.NodeExternalIP, Address: "233.252.0.123"},
 		},
-		Zone:   "nbg1",
-		Region: "eu-central",
+		Zone:   "nbg1-dc1",
+		Region: "nbg1",
+		AdditionalLabels: map[string]string{
+			"instance.hetzner.cloud/provided-by": "robot",
+		},
 	}
 
 	if !reflect.DeepEqual(metadata, expectedMetadata) {
@@ -332,14 +421,14 @@ func TestInstances_InstanceMetadataRobotServer(t *testing.T) {
 func TestNodeAddresses(t *testing.T) {
 	tests := []struct {
 		name           string
-		addressFamily  addressFamily
+		addressFamily  config.AddressFamily
 		server         *hcloud.Server
 		privateNetwork int64
 		expected       []corev1.NodeAddress
 	}{
 		{
 			name:          "hostname",
-			addressFamily: AddressFamilyIPv4,
+			addressFamily: config.AddressFamilyIPv4,
 			server: &hcloud.Server{
 				Name: "foobar",
 			},
@@ -349,7 +438,7 @@ func TestNodeAddresses(t *testing.T) {
 		},
 		{
 			name:          "public ipv4",
-			addressFamily: AddressFamilyIPv4,
+			addressFamily: config.AddressFamilyIPv4,
 			server: &hcloud.Server{
 				Name: "foobar",
 				PublicNet: hcloud.ServerPublicNet{
@@ -368,7 +457,7 @@ func TestNodeAddresses(t *testing.T) {
 		},
 		{
 			name:          "no public ipv4",
-			addressFamily: AddressFamilyIPv4,
+			addressFamily: config.AddressFamilyIPv4,
 			server: &hcloud.Server{
 				Name: "foobar",
 				PublicNet: hcloud.ServerPublicNet{
@@ -383,7 +472,7 @@ func TestNodeAddresses(t *testing.T) {
 		},
 		{
 			name:          "public ipv6",
-			addressFamily: AddressFamilyIPv6,
+			addressFamily: config.AddressFamilyIPv6,
 			server: &hcloud.Server{
 				Name: "foobar",
 				PublicNet: hcloud.ServerPublicNet{
@@ -402,7 +491,7 @@ func TestNodeAddresses(t *testing.T) {
 		},
 		{
 			name:          "no public ipv6",
-			addressFamily: AddressFamilyIPv6,
+			addressFamily: config.AddressFamilyIPv6,
 			server: &hcloud.Server{
 				Name: "foobar",
 				PublicNet: hcloud.ServerPublicNet{
@@ -417,7 +506,7 @@ func TestNodeAddresses(t *testing.T) {
 		},
 		{
 			name:          "public dual stack",
-			addressFamily: AddressFamilyDualStack,
+			addressFamily: config.AddressFamilyDualStack,
 			server: &hcloud.Server{
 				Name: "foobar",
 				PublicNet: hcloud.ServerPublicNet{
@@ -438,7 +527,7 @@ func TestNodeAddresses(t *testing.T) {
 
 		{
 			name:           "unknown private network",
-			addressFamily:  AddressFamilyIPv4,
+			addressFamily:  config.AddressFamilyIPv4,
 			privateNetwork: 1,
 			server: &hcloud.Server{
 				Name: "foobar",
@@ -449,7 +538,7 @@ func TestNodeAddresses(t *testing.T) {
 		},
 		{
 			name:           "server attached to private network",
-			addressFamily:  AddressFamilyIPv4,
+			addressFamily:  config.AddressFamilyIPv4,
 			privateNetwork: 1,
 			server: &hcloud.Server{
 				Name: "foobar",
@@ -470,7 +559,7 @@ func TestNodeAddresses(t *testing.T) {
 		},
 		{
 			name:           "server not attached to private network",
-			addressFamily:  AddressFamilyIPv4,
+			addressFamily:  config.AddressFamilyIPv4,
 			privateNetwork: 1,
 			server: &hcloud.Server{
 				Name: "foobar",
@@ -504,15 +593,15 @@ func TestNodeAddresses(t *testing.T) {
 func TestNodeAddressesRobotServer(t *testing.T) {
 	tests := []struct {
 		name           string
-		addressFamily  addressFamily
-		server         *models.Server
+		addressFamily  config.AddressFamily
+		server         *hrobotmodels.Server
 		privateNetwork int
 		expected       []corev1.NodeAddress
 	}{
 		{
 			name:          "public ipv4",
-			addressFamily: AddressFamilyIPv4,
-			server: &models.Server{
+			addressFamily: config.AddressFamilyIPv4,
+			server: &hrobotmodels.Server{
 				Name:          "foobar",
 				ServerIP:      "203.0.113.7",
 				ServerIPv6Net: "2001:db8:1234::",
@@ -524,8 +613,8 @@ func TestNodeAddressesRobotServer(t *testing.T) {
 		},
 		{
 			name:          "public ipv6",
-			addressFamily: AddressFamilyIPv6,
-			server: &models.Server{
+			addressFamily: config.AddressFamilyIPv6,
+			server: &hrobotmodels.Server{
 				Name:          "foobar",
 				ServerIP:      "203.0.113.7",
 				ServerIPv6Net: "2001:db8:1234::",
@@ -537,8 +626,8 @@ func TestNodeAddressesRobotServer(t *testing.T) {
 		},
 		{
 			name:          "public dual stack",
-			addressFamily: AddressFamilyDualStack,
-			server: &models.Server{
+			addressFamily: config.AddressFamilyDualStack,
+			server: &hrobotmodels.Server{
 				Name:          "foobar",
 				ServerIP:      "203.0.113.7",
 				ServerIPv6Net: "2001:db8:1234::",

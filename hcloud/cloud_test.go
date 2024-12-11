@@ -17,7 +17,6 @@ limitations under the License.
 package hcloud
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -25,11 +24,15 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
+	hrobot "github.com/syself/hrobot-go"
+	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/scheme"
+	"k8s.io/client-go/tools/record"
+
+	"github.com/syself/hetzner-cloud-controller-manager/internal/testsupport"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/schema"
-	"github.com/stretchr/testify/assert"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
-	hrobot "github.com/syself/hrobot-go"
 )
 
 type testEnv struct {
@@ -37,6 +40,7 @@ type testEnv struct {
 	Mux         *http.ServeMux
 	Client      *hcloud.Client
 	RobotClient hrobot.RobotClient
+	Recorder    record.EventRecorder
 }
 
 func (env *testEnv) Teardown() {
@@ -45,6 +49,7 @@ func (env *testEnv) Teardown() {
 	env.Mux = nil
 	env.Client = nil
 	env.RobotClient = nil
+	env.Recorder = nil
 }
 
 func newTestEnv() testEnv {
@@ -53,16 +58,19 @@ func newTestEnv() testEnv {
 	client := hcloud.NewClient(
 		hcloud.WithEndpoint(server.URL),
 		hcloud.WithToken("jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"),
-		hcloud.WithBackoffFunc(func(_ int) time.Duration { return 0 }),
+		hcloud.WithPollOpts(hcloud.PollOpts{BackoffFunc: hcloud.ConstantBackoff(0)}),
+		hcloud.WithRetryOpts(hcloud.RetryOpts{BackoffFunc: hcloud.ConstantBackoff(0)}),
 		hcloud.WithDebugWriter(os.Stdout),
 	)
 	robotClient := hrobot.NewBasicAuthClient("", "")
 	robotClient.SetBaseURL(server.URL + "/robot")
+	recorder := record.NewBroadcaster().NewRecorder(scheme.Scheme, corev1.EventSource{Component: "hcloud-cloud-controller-manager"})
 	return testEnv{
 		Server:      server,
 		Mux:         mux,
 		Client:      client,
 		RobotClient: robotClient,
+		Recorder:    recorder,
 	}
 }
 
@@ -70,51 +78,33 @@ func TestNewCloud(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
 
-	resetEnv := Setenv(t,
+	resetEnv := testsupport.Setenv(t,
 		"HCLOUD_ENDPOINT", env.Server.URL,
 		"HCLOUD_TOKEN", "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jN_NOT_VALID_dzhepnahq",
-		"NODE_NAME", "test",
 		"HCLOUD_METRICS_ENABLED", "false",
 	)
 	defer resetEnv()
-	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(
 			schema.ServerListResponse{
 				Servers: []schema.Server{},
 			},
 		)
 	})
-	var config bytes.Buffer
-	_, err := newCloud(&config)
-	if err != nil {
-		t.Fatalf("Unexpected error: %v", err)
-	}
-}
 
-func TestNewCloudWrongTokenSize(t *testing.T) {
-	resetEnv := Setenv(t,
-		"HCLOUD_TOKEN", "0123456789abcdef",
-		"HCLOUD_METRICS_ENABLED", "false",
-	)
-	defer resetEnv()
-
-	var config bytes.Buffer
-	_, err := newCloud(&config)
-	if err == nil || err.Error() != "entered token is invalid (must be exactly 64 characters long)" {
-		t.Fatalf("Unexpected error: %v", err)
-	}
+	_, err := NewCloud(DefaultClusterCIDR)
+	assert.NoError(t, err)
 }
 
 func TestNewCloudConnectionNotPossible(t *testing.T) {
-	resetEnv := Setenv(t,
+	resetEnv := testsupport.Setenv(t,
 		"HCLOUD_ENDPOINT", "http://127.0.0.1:4711/v1",
 		"HCLOUD_TOKEN", "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jN_NOT_VALID_dzhepnahq",
-		"NODE_NAME", "test",
 		"HCLOUD_METRICS_ENABLED", "false",
 	)
 	defer resetEnv()
 
-	_, err := newCloud(&bytes.Buffer{})
+	_, err := NewCloud(DefaultClusterCIDR)
 	assert.EqualError(t, err,
 		`hcloud/newCloud: Get "http://127.0.0.1:4711/v1/servers?": dial tcp 127.0.0.1:4711: connect: connection refused`)
 }
@@ -123,14 +113,13 @@ func TestNewCloudInvalidToken(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
 
-	resetEnv := Setenv(t,
+	resetEnv := testsupport.Setenv(t,
 		"HCLOUD_ENDPOINT", env.Server.URL,
 		"HCLOUD_TOKEN", "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jN_NOT_VALID_dzhepnahq",
-		"NODE_NAME", "test",
 		"HCLOUD_METRICS_ENABLED", "false",
 	)
 	defer resetEnv()
-	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(
@@ -143,7 +132,7 @@ func TestNewCloudInvalidToken(t *testing.T) {
 		)
 	})
 
-	_, err := newCloud(&bytes.Buffer{})
+	_, err := NewCloud(DefaultClusterCIDR)
 	assert.EqualError(t, err, "hcloud/newCloud: unable to authenticate (unauthorized)")
 }
 
@@ -151,16 +140,15 @@ func TestCloud(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
 
-	resetEnv := Setenv(t,
+	resetEnv := testsupport.Setenv(t,
 		"HCLOUD_ENDPOINT", env.Server.URL,
 		"HCLOUD_TOKEN", "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jN_NOT_VALID_dzhepnahq",
-		"NODE_NAME", "test",
 		"HCLOUD_METRICS_ENABLED", "false",
-		"ROBOT_USER_NAME", "user",
+		"ROBOT_USER", "user",
 		"ROBOT_PASSWORD", "pass123",
 	)
 	defer resetEnv()
-	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(
 			schema.ServerListResponse{
 				Servers: []schema.Server{
@@ -189,7 +177,7 @@ func TestCloud(t *testing.T) {
 			},
 		)
 	})
-	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(
 			schema.NetworkGetResponse{
 				Network: schema.Network{
@@ -207,7 +195,7 @@ func TestCloud(t *testing.T) {
 		)
 	})
 
-	cloud, err := newCloud(&bytes.Buffer{})
+	cloud, err := NewCloud(DefaultClusterCIDR)
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
@@ -255,14 +243,16 @@ func TestCloud(t *testing.T) {
 	})
 
 	t.Run("RoutesWithNetworks", func(t *testing.T) {
-		resetEnv := Setenv(t,
+		resetEnv := testsupport.Setenv(t,
 			"HCLOUD_NETWORK", "1",
 			"HCLOUD_NETWORK_DISABLE_ATTACHED_CHECK", "true",
 			"HCLOUD_METRICS_ENABLED", "false",
+			"ROBOT_USER", "",
+			"ROBOT_PASSWORD", "",
 		)
 		defer resetEnv()
 
-		c, err := newCloud(&bytes.Buffer{})
+		c, err := NewCloud(DefaultClusterCIDR)
 		if err != nil {
 			t.Errorf("%s", err)
 		}
@@ -283,116 +273,4 @@ func TestCloud(t *testing.T) {
 			t.Error("ProviderName should be hcloud")
 		}
 	})
-}
-
-func TestLoadBalancerDefaultsFromEnv(t *testing.T) {
-	cases := []struct {
-		name                     string
-		env                      map[string]string
-		expDefaults              hcops.LoadBalancerDefaults
-		expDisablePrivateIngress bool
-		expDisableIPv6           bool
-		expErr                   string
-	}{
-		{
-			name:        "None set",
-			env:         map[string]string{},
-			expDefaults: hcops.LoadBalancerDefaults{
-				// strings should be empty (zero value)
-				// bools should be false (zero value)
-			},
-		},
-		{
-			name: "All set (except network zone)",
-			env: map[string]string{
-				"HCLOUD_LOAD_BALANCERS_LOCATION":                "hel1",
-				"HCLOUD_LOAD_BALANCERS_DISABLE_PRIVATE_INGRESS": "true",
-				"HCLOUD_LOAD_BALANCERS_DISABLE_IPV6":            "true",
-				"HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP":          "true",
-			},
-			expDefaults: hcops.LoadBalancerDefaults{
-				Location:     "hel1",
-				UsePrivateIP: true,
-			},
-			expDisablePrivateIngress: true,
-			expDisableIPv6:           true,
-		},
-		{
-			name: "Network zone set",
-			env: map[string]string{
-				"HCLOUD_LOAD_BALANCERS_NETWORK_ZONE": "eu-central",
-			},
-			expDefaults: hcops.LoadBalancerDefaults{
-				NetworkZone: "eu-central",
-			},
-		},
-		{
-			name: "Both location and network zone set (error)",
-			env: map[string]string{
-				"HCLOUD_LOAD_BALANCERS_LOCATION":     "hel1",
-				"HCLOUD_LOAD_BALANCERS_NETWORK_ZONE": "eu-central",
-			},
-			expErr: "HCLOUD_LOAD_BALANCERS_LOCATION/HCLOUD_LOAD_BALANCERS_NETWORK_ZONE: Only one of these can be set",
-		},
-		{
-			name: "Invalid DISABLE_PRIVATE_INGRESS",
-			env: map[string]string{
-				"HCLOUD_LOAD_BALANCERS_DISABLE_PRIVATE_INGRESS": "invalid",
-			},
-			expErr: `HCLOUD_LOAD_BALANCERS_DISABLE_PRIVATE_INGRESS: strconv.ParseBool: parsing "invalid": invalid syntax`,
-		},
-		{
-			name: "Invalid DISABLE_IPV6",
-			env: map[string]string{
-				"HCLOUD_LOAD_BALANCERS_DISABLE_IPV6": "invalid",
-			},
-			expErr: `HCLOUD_LOAD_BALANCERS_DISABLE_IPV6: strconv.ParseBool: parsing "invalid": invalid syntax`,
-		},
-		{
-			name: "Invalid USE_PRIVATE_IP",
-			env: map[string]string{
-				"HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP": "invalid",
-			},
-			expErr: `HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP: strconv.ParseBool: parsing "invalid": invalid syntax`,
-		},
-	}
-
-	for _, c := range cases {
-		c := c // prevent scopelint from complaining
-		t.Run(c.name, func(t *testing.T) {
-			previousEnvVars := map[string]string{}
-			unsetEnvVars := []string{}
-
-			for k, v := range c.env {
-				// Store previous value, so we can later restore it and not affect other tests in this package.
-				if v, ok := os.LookupEnv(k); ok {
-					previousEnvVars[k] = v
-				} else if !ok {
-					unsetEnvVars = append(unsetEnvVars, k)
-				}
-				os.Setenv(k, v)
-			}
-
-			// Make sure this is always executed, even on panic
-			defer func() {
-				for k, v := range previousEnvVars {
-					os.Setenv(k, v)
-				}
-				for _, k := range unsetEnvVars {
-					os.Unsetenv(k)
-				}
-			}()
-
-			defaults, disablePrivateIngress, disableIPv6, err := loadBalancerDefaultsFromEnv()
-
-			if c.expErr != "" {
-				assert.EqualError(t, err, c.expErr)
-				return
-			}
-			assert.NoError(t, err)
-			assert.Equal(t, c.expDefaults, defaults)
-			assert.Equal(t, c.expDisablePrivateIngress, disablePrivateIngress)
-			assert.Equal(t, c.expDisableIPv6, disableIPv6)
-		})
-	}
 }

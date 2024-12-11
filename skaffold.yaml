@@ -1,4 +1,4 @@
-apiVersion: skaffold/v4beta3
+apiVersion: skaffold/v4beta11
 kind: Config
 metadata:
   name: cloud-controller-manager
@@ -7,13 +7,12 @@ build:
     - image: syself/hetzner-cloud-controller-manager
       runtimeType: go
       docker:
-        dockerfile: hack/Dockerfile
-        cacheFrom:
-          - syself/hetzner-cloud-controller-manager:buildcache
+        dockerfile: dev/Dockerfile
   local:
     useBuildkit: true
   insecureRegistries:
     - localhost:30666
+
 manifests:
   helm:
     releases:
@@ -22,3 +21,24 @@ manifests:
         chartPath: chart
         setValues:
           networking.enabled: true
+          # Pulling the containers from other nodes requires working network routes, but HCCM set these up.
+          # We circumvent this by co-locating the registry & HCCM, so it's always a local pull.
+          affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].topologyKey: "kubernetes.io/hostname"
+          affinity.podAffinity.requiredDuringSchedulingIgnoredDuringExecution[0].labelSelector.matchLabels.app: docker-registry
+
+profiles:
+  # Clusters with Robot Servers do not support the native Routing functionality right now.
+  - name: robot
+    patches:
+      - op: replace
+        path: /manifests/helm/releases/0/setValues/networking.enabled
+        value: false
+      - op: add
+        path: /manifests/helm/releases/0/setValues/robot.enabled
+        value: true
+      - op: add
+        path: /manifests/helm/releases/0/setValues/env.ROBOT_USER.valueFrom.secretKeyRef.name
+        value: robot
+      - op: add
+        path: /manifests/helm/releases/0/setValues/env.ROBOT_PASSWORD.valueFrom.secretKeyRef.name
+        value: robot

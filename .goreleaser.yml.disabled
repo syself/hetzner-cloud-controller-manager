@@ -1,0 +1,72 @@
+# Visit https://goreleaser.com for documentation on how to customize this
+# behavior.
+---
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+    - ./scripts/release-generate-deployment-yamls.sh {{ .Version }}
+
+builds:
+  - id: hcloud-cloud-controller-manager
+    env:
+      - CGO_ENABLED=0
+    goos:
+      - linux
+    goarch:
+      - amd64
+      - arm64
+      - arm
+    binary: hcloud-cloud-controller-manager
+    ldflags:
+      - -s
+      - -w
+      - -X github.com/hetznercloud/hcloud-cloud-controller-manager/hcloud.providerVersion={{ if not .IsSnapshot }}v{{ end }}{{ .Version }}
+      - -X k8s.io/component-base/version.gitVersion={{ if not .IsSnapshot }}v{{ end }}{{ .Version }}
+
+dockers:
+  - build_flag_templates: [--platform=linux/amd64]
+    dockerfile: Dockerfile
+    goarch: amd64
+    image_templates:
+      - hetznercloud/hcloud-cloud-controller-manager:{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}-amd64
+    use: buildx
+  - build_flag_templates: [--platform=linux/arm64]
+    dockerfile: Dockerfile
+    goarch: arm64
+    image_templates:
+      - hetznercloud/hcloud-cloud-controller-manager:{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}-arm64v8
+    use: buildx
+  - build_flag_templates: [--platform=linux/arm/v6]
+    dockerfile: Dockerfile
+    goarch: arm
+    goarm: 6
+    image_templates:
+      - hetznercloud/hcloud-cloud-controller-manager:{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}-armv6
+    use: buildx
+
+docker_manifests:
+  - name_template: hetznercloud/hcloud-cloud-controller-manager:{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}
+    image_templates:
+      - hetznercloud/hcloud-cloud-controller-manager:{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}-amd64
+      - hetznercloud/hcloud-cloud-controller-manager:{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}-arm64v8
+      - hetznercloud/hcloud-cloud-controller-manager:{{ if not .IsSnapshot }}v{{ end }}{{ .Version }}-armv6
+
+release:
+  ids: [""]
+  extra_files:
+    - glob: ./deploy/ccm*.yaml
+    - glob: ./hcloud-cloud-controller-manager-*.tgz
+
+publishers:
+  - name: helm-chart-repo
+
+    # make sure that this is only executed once. There are no separate ids per binary built,
+    # we filter for no actual ID and then run the publisher for the checksum.
+    ids: [""]
+    checksum: true
+
+    cmd: ./scripts/publish-helm-chart.sh hcloud-cloud-controller-manager-{{ .Version }}.tgz
+    env:
+      - CHART_REPO_REMOTE={{ .Env.CHART_REPO_REMOTE }}

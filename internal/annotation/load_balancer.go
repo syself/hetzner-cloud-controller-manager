@@ -3,9 +3,10 @@ package annotation
 import (
 	"fmt"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 const (
@@ -52,6 +53,10 @@ const (
 	// LBUsePrivateIP configures the Load Balancer to use the private IP for
 	// Load Balancer server targets.
 	LBUsePrivateIP Name = "load-balancer.hetzner.cloud/use-private-ip"
+
+	// LBPrivateIPv4 specifies the IPv4 address to assign to the load balancer in the
+	// private network that it's attached to.
+	LBPrivateIPv4 Name = "load-balancer.hetzner.cloud/private-ipv4"
 
 	// LBHostname specifies the hostname of the Load Balancer. This will be
 	// used as ingress address instead of the Load Balancer IP addresses if

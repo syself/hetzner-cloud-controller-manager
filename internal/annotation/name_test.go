@@ -8,11 +8,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/stretchr/testify/assert"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 const ann annotation.Name = "some/annotation"
@@ -87,7 +88,6 @@ func TestName_AddToService(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := ann.AnnotateService(&tt.svc, tt.value)
 			if tt.err != nil {
@@ -122,7 +122,6 @@ func TestName_StringFromService(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var svc corev1.Service
 
@@ -477,7 +476,6 @@ func runAllTypedAccessorTests(
 	t.Helper()
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.run(t, call)
 		})

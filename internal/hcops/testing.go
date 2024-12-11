@@ -6,9 +6,11 @@ import (
 	"net"
 	"testing"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	hrobotmodels "github.com/syself/hrobot-go/models"
+	"k8s.io/client-go/tools/record"
+
 	"github.com/syself/hetzner-cloud-controller-manager/internal/mocks"
-	"github.com/syself/hrobot-go/models"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 type LoadBalancerOpsFixture struct {
@@ -48,6 +50,7 @@ func NewLoadBalancerOpsFixture(t *testing.T) *LoadBalancerOpsFixture {
 		ActionClient:  fx.ActionClient,
 		NetworkClient: fx.NetworkClient,
 		RobotClient:   fx.RobotClient,
+		Recorder:      &record.FakeRecorder{},
 	}
 
 	return fx
@@ -121,13 +124,9 @@ func (fx *LoadBalancerOpsFixture) MockRemoveIPTarget(
 }
 
 func (fx *LoadBalancerOpsFixture) MockListRobotServers(
-	serverList []models.Server, err error,
+	serverList []hrobotmodels.Server, err error,
 ) {
 	fx.RobotClient.On("ServerGetList").Return(serverList, err)
-}
-
-func (fx *LoadBalancerOpsFixture) MockWatchProgress(a *hcloud.Action, err error) {
-	fx.ActionClient.MockWatchProgress(fx.Ctx, a, err)
 }
 
 func (fx *LoadBalancerOpsFixture) AssertExpectations() {

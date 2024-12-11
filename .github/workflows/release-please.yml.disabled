@@ -1,0 +1,31 @@
+name: Releaser-pleaser
+
+on:
+  push:
+    branches: [main]
+  pull_request_target:
+    types:
+      - edited
+      - labeled
+      - unlabeled
+
+jobs:
+  releaser-pleaser:
+    # Do not run on forks.
+    if: github.repository == 'hetznercloud/hcloud-cloud-controller-manager'
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: releaser-pleaser
+        uses: apricote/releaser-pleaser@v0.5.0
+        with:
+          token: ${{ secrets.HCLOUD_BOT_TOKEN }}
+          extra-files: |
+            deploy/ccm-networks.yaml
+            deploy/ccm.yaml
+            chart/Chart.yaml
+            chart/.snapshots/default.yaml
+            chart/.snapshots/full.daemonset.yaml

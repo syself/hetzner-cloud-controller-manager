@@ -8,9 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
+
+	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 // ErrNotSet signals that an annotation was not set.

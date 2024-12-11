@@ -1,5 +1,8 @@
 # hccm program command line arguments.
-# The "--allocate-node-cidrs" + "--cluster-cidr" + "--leader-elect" arguments are managed by the chart and should *not* be set directly here.
+# The following flags are managed by the chart and should *not* be set directly here:
+# --allocate-node-cidrs
+# --cluster-cidr
+# --leader-elect
 args:
   cloud-provider: hcloud
   allow-untagged-cloud: ""
@@ -13,22 +16,47 @@ args:
   # https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/492
   webhook-secure-port: "0"
 
+# Change deployment kind from "Deployment" to "DaemonSet"
+kind: Deployment
+
+# change replicaCount (only used when kind is "Deployment")
 replicaCount: 1
 
 # hccm environment variables
 env:
-  # The following two variables should *not* be set here:
+  # The following variables are managed by the chart and should *not* be set here:
   # HCLOUD_METRICS_ENABLED - see monitoring.enabled
   # HCLOUD_NETWORK - see networking.enabled
+  # ROBOT_ENABLED - see robot.enabled
+
+  # You can also use a file to provide secrets to the hcloud-cloud-controller-manager.
+  # This is currently possible for HCLOUD_TOKEN, ROBOT_USER, and ROBOT_PASSWORD.
+  # Use the env var appended with _FILE (e.g. HCLOUD_TOKEN_FILE) and set the value to the file path that should be read
+  # The file must be provided externally (e.g. via secret injection).
+  # Example:
+  # HCLOUD_TOKEN_FILE:
+  #   value: "/etc/hetzner/token"
+  # to disable reading the token from the secret you have to disable the original env var:
+  # HCLOUD_TOKEN: null
+
   HCLOUD_TOKEN:
     valueFrom:
       secretKeyRef:
         name: hcloud
         key: token
-  NODE_NAME:
+
+  ROBOT_USER:
     valueFrom:
-      fieldRef:
-        fieldPath: spec.nodeName
+      secretKeyRef:
+        name: hcloud
+        key: robot-user
+        optional: true
+  ROBOT_PASSWORD:
+    valueFrom:
+      secretKeyRef:
+        name: hcloud
+        key: robot-password
+        optional: true
 
 image:
   repository: quay.io/syself/hetzner-cloud-controller-manager
@@ -51,7 +79,6 @@ monitoring:
     spec:
       podMetricsEndpoints:
         - port: metrics
-    
 
 nameOverride: ~
 
@@ -75,6 +102,37 @@ resources:
 
 selectorLabels:
   app.kubernetes.io/name: '{{ include "hcloud-cloud-controller-manager.name" $ }}'
-  app.kubernetes.io/instance: '{{ $.Release.Name }}'
+  app.kubernetes.io/instance: "{{ $.Release.Name }}"
 
 additionalTolerations: []
+
+# nodeSelector:
+#   node-role.kubernetes.io/control-plane: ""
+nodeSelector: {}
+
+# Set the affinity for pods. (Only works with kind=Deployment)
+affinity: {}
+
+robot:
+  # Set to true to enable support for Robot (Dedicated) servers.
+  enabled: false
+
+podLabels: {}
+
+podAnnotations: {}
+
+# Mounts the specified volume to the hcloud-cloud-controller-manager container.
+extraVolumeMounts: []
+# # Example
+# extraVolumeMounts:
+#   - name: token-volume
+#     readOnly: true
+#     mountPath: /var/run/secrets/hcloud
+
+# Adds extra volumes to the pod.
+extraVolumes: []
+# # Example
+# extraVolumes:
+#   - name: token-volume
+#     secret:
+#       secretName: hcloud-token

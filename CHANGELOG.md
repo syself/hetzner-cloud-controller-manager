@@ -1,5 +1,101 @@
 # Changelog
 
+## [v1.21.0](https://github.com/hetznercloud/hcloud-cloud-controller-manager/releases/tag/v1.21.0)
+
+### Feature Highlights &amp; Upgrade Notes
+
+#### Load Balancer IPs set to Private IPs
+
+If networking support is enabled, the load balancer IPs are now populated with the private IPs, unless the `load-balancer.hetzner.cloud/disable-private-ingress` annotation is set to `true`. Please make sure that you configured the annotation according to your needs, for example if you are using `external-dns`.
+
+#### Provided-By Label
+
+We introduced a the label `instance.hetzner.cloud/provided-by`, which will be automatically added to all **new** nodes. This label can have the values `cloud` or `robot` to distinguish between our products. We use this label in the csi-driver to ensure the daemonset is only running on cloud nodes. We recommend to add this label to your existing nodes with the appropriate value.
+
+- `kubectl label node $CLOUD_NODE_NAME instance.hetzner.cloud/provided-by=cloud`
+- `kubectl label node $ROBOT_NODE_NAME instance.hetzner.cloud/provided-by=robot`
+
+#### Load Balancer IPMode Proxy
+
+Kubernetes KEP-1860 added a new field to the Load Balancer Service Status that allows us to mark if the IP address we add should be considered as a Proxy (always send traffic here) and VIP (allow optimization by keeping the traffic in the cluster).
+
+Previously Kubernetes considered all IPs as VIP, which caused issues when when the PROXY protocol was in use. We have previously recommended to use the annotation `load-balancer.hetzner.cloud/hostname` to workaround this problem.
+
+We now set the new field to `Proxy` if the PROXY protocol is active so the issue should no longer appear. If you  only added the `load-balancer.hetzner.cloud/hostname` annotation for this problem, you can remove it after upgrading.
+
+Further information:
+
+- https://github.com/kubernetes/enhancements/issues/1860
+- https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/160#issuecomment-788638132
+
+### Features
+
+- **service**: Specify private ip for loadbalancer (#724)
+- add support &amp; tests for Kubernetes 1.31 (#747)
+- **helm**: allow setting extra pod volumes via chart values  (#744)
+- **instance**: add label to distinguish servers from Cloud and Robot (#764)
+- emit event when robot server name and node name mismatch (#773)
+- **load-balancer**: Set IPMode to &#34;Proxy&#34; if load balancer is configured to use proxy protocol (#727) (#783)
+- **routes**: emit warning if cluster cidr is misconfigured (#793)
+- **load-balancer**: ignore nodes that don&#39;t use known provider IDs (#780)
+- drop tests for kubernetes v1.27 and v1.28
+
+### Bug Fixes
+
+- populate ingress private ip when disable-private-ingress is false (#715)
+- wrong version logged on startup (#729)
+- invalid characters in label instance-type of robot servers (#770)
+- no events are emitted as broadcaster has no sink configured (#774)
+
+### Kubernetes Support
+
+This version was tested with Kubernetes 1.29 - 1.31. Furthermore, we dropped v1.27 and v1.28 support.
+
+## [1.20.0](https://github.com/hetznercloud/hcloud-cloud-controller-manager/compare/v1.19.0...v1.20.0) (2024-07-08)
+
+
+### Features
+
+* add support & tests for Kubernetes 1.29 ([#600](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/600)) ([e8fabda](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/e8fabda9ab2e607bcb9a88a7e4e3454d10f1e2a0))
+* add support & tests for Kubernetes 1.30 ([#679](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/679)) ([0748b6e](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/0748b6e4457227cea77c733b897ce63e0aa0da9b))
+* drop tests for kubernetes v1.25 ([#597](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/597)) ([58261ec](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/58261ec84252da0291770095081fbf49c3e6f659))
+* drop tests for kubernetes v1.26 ([#680](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/680)) ([9c4be01](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/9c4be01659d8ed2607c410639fa8719aedb22c2a))
+* emit Kubernetes events for error conditions ([#598](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/598)) ([e8f9199](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/e8f9199975fe4a458f962a73caa4e4a7091093ee))
+* **helm,manifests:** only specify container args instead of command ([#691](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/691)) ([2ba4058](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/2ba40588d3b3b44ac3c0fa4ff9ae9e9fd3336cc9))
+* **helm:** allow setting affinity for deployment ([#686](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/686)) ([1a8ea95](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/1a8ea95571a0048c96160756b0d1c40f1a8a8b70))
+* read HCLOUD_TOKEN from file ([#652](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/652)) ([a4343b8](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/a4343b84ea3fc6662f1f263f41325eea2e749c41))
+
+
+### Bug Fixes
+
+* **routes:** many requests for outdated routes by rate limiting ([#675](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/675)) ([e283b7d](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/e283b7deea83bc8bd9b20ad8d098884da3eda554))
+
+## [1.19.0](https://github.com/hetznercloud/hcloud-cloud-controller-manager/compare/v1.18.0...v1.19.0) (2023-12-07)
+
+
+### Features
+
+* **chart:** add daemonset and node selector ([#537](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/537)) ([a94384f](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/a94384feb782529e4f0c2424fb037704f495fb83))
+* **config:** stricter validation for settings `HCLOUD_LOAD_BALANCERS_ENABLED`, `HCLOUD_METRICS_ENABLED` & `HCLOUD_NETWORK_ROUTES_ENABLED` ([#546](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/546)) ([335a2c9](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/335a2c98e5ad1ca97e8e17e5eaebf2906cda8e60))
+* **helm:** remove "v" prefix from chart version ([#565](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/565)) ([f11aa0d](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/f11aa0df8056e7c406fd214570e032820f0559d7)), closes [#529](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/529)
+* **load-balancer:** handle planned targets exceedings max targets ([#570](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/570)) ([8bb131f](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/8bb131ff66dcd657b6d3e58f0937a7f266553667))
+* remove unused variable NODE_NAME ([#545](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/545)) ([a659408](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/a65940830c4c92d53e55df9258a4bcc0a0a72abe))
+* **robot:** handle ratelimiting with constant backoff ([#572](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/572)) ([2ddc201](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/2ddc201a6134f91a11e555d6fcbc2d2048b669a6))
+* support for Robot servers ([#561](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/561)) ([65dea11](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/65dea11f93ce6ff413cea468b3c8d59487dde346))
+
+## [1.19.0-rc.0](https://github.com/hetznercloud/hcloud-cloud-controller-manager/compare/v1.18.0...v1.19.0-rc.0) (2023-12-01)
+
+
+### Features
+
+* **chart:** add daemonset and node selector ([#537](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/537)) ([a94384f](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/a94384feb782529e4f0c2424fb037704f495fb83))
+* **config:** stricter validation for settings `HCLOUD_LOAD_BALANCERS_ENABLED`, `HCLOUD_METRICS_ENABLED` & `HCLOUD_NETWORK_ROUTES_ENABLED` ([#546](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/546)) ([335a2c9](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/335a2c98e5ad1ca97e8e17e5eaebf2906cda8e60))
+* **helm:** remove "v" prefix from chart version ([#565](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/565)) ([f11aa0d](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/f11aa0df8056e7c406fd214570e032820f0559d7)), closes [#529](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/529)
+* **load-balancer:** handle planned targets exceedings max targets ([#570](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/570)) ([8bb131f](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/8bb131ff66dcd657b6d3e58f0937a7f266553667))
+* remove unused variable NODE_NAME ([#545](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/545)) ([a659408](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/a65940830c4c92d53e55df9258a4bcc0a0a72abe))
+* **robot:** handle ratelimiting with constant backoff ([#572](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/572)) ([2ddc201](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/2ddc201a6134f91a11e555d6fcbc2d2048b669a6))
+* support for Robot servers ([#561](https://github.com/hetznercloud/hcloud-cloud-controller-manager/issues/561)) ([65dea11](https://github.com/hetznercloud/hcloud-cloud-controller-manager/commit/65dea11f93ce6ff413cea468b3c8d59487dde346))
+
 ## [1.18.0](https://github.com/hetznercloud/hcloud-cloud-controller-manager/compare/v1.17.2...v1.18.0) (2023-09-18)
 
 

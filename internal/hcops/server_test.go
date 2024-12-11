@@ -7,11 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"golang.org/x/time/rate"
+
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/mocks"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 func TestAllServersCache_CacheMiss(t *testing.T) {
@@ -26,7 +28,7 @@ func TestAllServersCache_CacheMiss(t *testing.T) {
 	}
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.ServerClient.
 				On("All", mock.Anything).
 				Return([]*hcloud.Server{srv}, nil)
@@ -149,6 +151,81 @@ func TestAllServersCache_CacheRefresh(t *testing.T) {
 	runAllServersCacheTests(t, "Cache refresh", tmpl, cacheOps)
 }
 
+func TestAllServersCache_CacheMissRefresh(t *testing.T) {
+	srv := &hcloud.Server{
+		ID:   1337,
+		Name: "cache-miss-refresh",
+		PrivateNet: []hcloud.ServerPrivateNet{
+			{
+				IP: net.ParseIP("10.0.0.9"),
+			},
+		},
+	}
+	cacheOps := newAllServersCacheOps(t, srv)
+	tmpl := allServersCacheTestCase{
+		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+			tt.ServerClient.
+				On("All", mock.Anything).
+				Return([]*hcloud.Server{}, nil).Once()
+
+			tt.ServerClient.
+				On("All", mock.Anything).
+				Return([]*hcloud.Server{srv}, nil).Once()
+
+			// Setup initial cache
+			result, err := tt.Cache.ByName(srv.Name)
+			assert.Error(t, err)
+			assert.Nil(t, result)
+		},
+		Assert: func(t *testing.T, tt *allServersCacheTestCase) {
+			// All must be called only twice. Once during set-up because the cache is expired,
+			// and then again during the cache retrieval because the server was not found.
+			tt.ServerClient.AssertNumberOfCalls(t, "All", 2)
+		},
+		Expected: srv,
+	}
+
+	runAllServersCacheTests(t, "Cache refresh", tmpl, cacheOps)
+}
+
+func TestAllServersCache_CacheRefreshLimited(t *testing.T) {
+	srv := &hcloud.Server{
+		ID:   1337,
+		Name: "cache-refresh-limited",
+		PrivateNet: []hcloud.ServerPrivateNet{
+			{
+				IP: net.ParseIP("10.0.0.9"),
+			},
+		},
+	}
+	cacheOps := newAllServersCacheOps(t, srv)
+	tmpl := allServersCacheTestCase{
+		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+			tt.ServerClient.
+				On("All", mock.Anything).
+				Return([]*hcloud.Server{}, nil)
+
+			result, err := tt.Cache.ByName(srv.Name)
+			assert.Error(t, err)
+			assert.Nil(t, result)
+
+			result, err = tt.Cache.ByName(srv.Name)
+			assert.Error(t, err)
+			assert.Nil(t, result)
+		},
+		Assert: func(t *testing.T, tt *allServersCacheTestCase) {
+			// All must be called only twice. Once during set-up because the cache is expired,
+			// and then again during set-up to trigger the limiter.
+
+			tt.ServerClient.AssertNumberOfCalls(t, "All", 2)
+		},
+		Expected:    nil,
+		ExpectedErr: hcops.ErrNotFound,
+	}
+
+	runAllServersCacheTests(t, "Cache refresh", tmpl, cacheOps)
+}
+
 func TestAllServersCache_NotFound(t *testing.T) {
 	srv := &hcloud.Server{
 		ID:   101010,
@@ -161,7 +238,7 @@ func TestAllServersCache_NotFound(t *testing.T) {
 	}
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.ServerClient.
 				On("All", mock.Anything).
 				Return(nil, nil)
@@ -185,12 +262,45 @@ func TestAllServersCache_ClientError(t *testing.T) {
 	}
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.ServerClient.
 				On("All", mock.Anything).
 				Return(nil, err)
 		},
 		ExpectedErr: err,
+	}
+
+	runAllServersCacheTests(t, "Not found", tmpl, cacheOps)
+}
+
+func TestAllServersCache_CacheMissRefreshClientError(t *testing.T) {
+	expectedErr := errors.New("cache-miss-refresh-client-error")
+	srv := &hcloud.Server{
+		ID:   202020,
+		Name: "cache-miss-refresh-client-error",
+		PrivateNet: []hcloud.ServerPrivateNet{
+			{
+				IP: net.ParseIP("10.0.0.5"),
+			},
+		},
+	}
+	cacheOps := newAllServersCacheOps(t, srv)
+	tmpl := allServersCacheTestCase{
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
+			tt.ServerClient.
+				On("All", mock.Anything).
+				Return([]*hcloud.Server{}, nil).Once()
+
+			// Load the cache once
+			result, err := tt.Cache.ByName(srv.Name)
+			assert.Error(t, err)
+			assert.Nil(t, result)
+
+			tt.ServerClient.
+				On("All", mock.Anything).
+				Return(nil, expectedErr).Once()
+		},
+		ExpectedErr: expectedErr,
 	}
 
 	runAllServersCacheTests(t, "Not found", tmpl, cacheOps)
@@ -229,7 +339,7 @@ func TestAllServersCache_DuplicatePrivateIP(t *testing.T) {
 
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.Cache.Network = network
 
 			tt.ServerClient.
@@ -283,7 +393,8 @@ type allServersCacheTestCase struct {
 func (tt *allServersCacheTestCase) run(t *testing.T) {
 	tt.ServerClient = mocks.NewServerClient(t)
 	tt.Cache = &hcops.AllServersCache{
-		LoadFunc: tt.ServerClient.All,
+		LoadFunc:                tt.ServerClient.All,
+		CacheMissRefreshLimiter: rate.NewLimiter(rate.Every(1*time.Minute), 1),
 	}
 
 	if tt.SetUp != nil {

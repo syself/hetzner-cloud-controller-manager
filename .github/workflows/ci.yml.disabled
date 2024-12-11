@@ -1,0 +1,98 @@
+---
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pre-commit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: 3.x
+
+      - uses: pre-commit/action@v3.0.1
+
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - run: go test -v -race -coverprofile=coverage.txt ./...
+
+      - uses: codecov/codecov-action@v5
+        if: >
+          !startsWith(github.head_ref, 'renovate/') &&
+          !startsWith(github.head_ref, 'releaser-pleaser--')
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: v1.62.2 # renovate: datasource=github-releases depName=golangci/golangci-lint
+
+          # In general linting is quite fast with warm caches, but a fresh run might take some time.
+          args: --timeout 5m
+
+  deploy-manifests:
+    name: Check deployment manifests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: yokawasa/action-setup-kube-tools@v0.11.2
+        with:
+          setup-tools: |
+            helm
+          helm: v3.11.2
+
+      - uses: actions/checkout@v4
+      - name: Generate manifests from helm chart
+        run: scripts/update-deployment-yamls.sh
+
+      - name: Check for diff
+        run: git diff --exit-code -- deploy/
+
+      - name: Show warning
+        if: ${{ failure() }}
+        run: echo "::error title=Deployment Manifests outdated::Please run scripts/update-deployment-yamls.sh and commit the changes to deploy/"
+
+  helm-chart:
+    name: Verify snapshots
+    runs-on: ubuntu-latest
+    steps:
+      - uses: yokawasa/action-setup-kube-tools@v0.11.2
+        with:
+          setup-tools: |
+            helm
+          helm: v3.16.3 # renovate: datasource=github-releases depName=helm/helm
+
+      - uses: actions/checkout@v4
+
+      - name: Verify
+        run: |
+          scripts/update-helm-snapshots.sh
+          git diff --exit-code -- chart/.snapshots/
+
+      - name: Show warning
+        if: failure()
+        run: echo "::error title=Helm Snapshots outdated::Please run hack/update-helm-snapshots.sh and commit the changes to chart/.snapshots/"
+
+      - name: Helm Lint
+        run: helm lint chart/

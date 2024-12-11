@@ -1,3 +1,4 @@
+{{- if eq $.Values.kind "Deployment" }}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,6 +14,13 @@ spec:
     metadata:
       labels:
         {{- include "hetzner-cloud-controller-manager.selectorLabels" . | nindent 8 }}
+        {{- if .Values.podLabels }}
+        {{- toYaml .Values.podLabels | nindent 8 }}
+        {{- end }}
+      {{- if .Values.podAnnotations }}
+      annotations:
+        {{- toYaml .Values.podAnnotations | nindent 8 }}
+      {{- end }}
     spec:
       serviceAccountName: {{ include "hcloud-cloud-controller-manager.name" . }}
       dnsPolicy: Default
@@ -39,13 +47,22 @@ spec:
         {{ toYaml .Values.additionalTolerations | nindent 8 }}
         {{- end }}
 
+      {{- if gt (len .Values.nodeSelector) 0 }}
+      nodeSelector:
+        {{ toYaml .Values.nodeSelector | nindent 8 }}
+      {{- end }}
+
+      {{- if gt (len .Values.affinity) 0 }}
+      affinity:
+        {{ toYaml .Values.affinity | nindent 8 }}
+      {{- end }}
+
       {{- if $.Values.networking.enabled }}
       hostNetwork: true
       {{- end }}
       containers:
         - name: hetzner-cloud-controller-manager
-          command:
-            - "/bin/hetzner-cloud-controller-manager"
+          args:
             {{- range $key, $value := $.Values.args }}
             {{- if not (eq $value nil) }}
             - "--{{ $key }}{{ if $value }}={{ $value }}{{ end }}"
@@ -71,7 +88,11 @@ spec:
             - name: HCLOUD_METRICS_ENABLED
               value: "false"
             {{- end }}
-          image: {{ $.Values.image.repository }}:{{ tpl $.Values.image.tag . }} # x-release-please-version
+            {{- if $.Values.robot.enabled }}
+            - name: ROBOT_ENABLED
+              value: "true"
+            {{- end }}
+          image: {{ $.Values.image.repository }}:{{ tpl $.Values.image.tag . }} # x-releaser-pleaser-version
           ports:
             {{- if $.Values.monitoring.enabled }}
             - name: metrics
@@ -79,4 +100,13 @@ spec:
             {{- end }}
           resources:
             {{- toYaml $.Values.resources | nindent 12 }}
+          {{- with .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
       priorityClassName: system-cluster-critical
+      {{- with .Values.extraVolumes }}
+      volumes:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- end }}

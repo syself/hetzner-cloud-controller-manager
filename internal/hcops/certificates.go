@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 // HCloudCertificateClient defines the hcloud-go function related to

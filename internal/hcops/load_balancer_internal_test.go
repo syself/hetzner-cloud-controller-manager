@@ -5,14 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/mocks"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+
+	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/mocks"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 func TestHCLBServiceOptsBuilder(t *testing.T) {
@@ -127,7 +128,7 @@ func TestHCLBServiceOptsBuilder(t *testing.T) {
 				annotation.LBSvcProtocol:         hcloud.LoadBalancerServiceProtocolHTTPS,
 				annotation.LBSvcHTTPCertificates: []*hcloud.Certificate{{Name: "cert-1"}, {Name: "cert-2"}},
 			},
-			mock: func(t *testing.T, tt *testCase) {
+			mock: func(_ *testing.T, tt *testCase) {
 				tt.certClient.
 					On("Get", mock.Anything, "cert-1").
 					Return(&hcloud.Certificate{ID: 1, Name: "cert-1"}, nil, nil)
@@ -168,7 +169,7 @@ func TestHCLBServiceOptsBuilder(t *testing.T) {
 				annotation.LBSvcHTTPCertificateType:           "managed",
 				annotation.LBSvcHTTPManagedCertificateDomains: []string{"*.example.com", "example.com"},
 			},
-			mock: func(t *testing.T, tt *testCase) {
+			mock: func(_ *testing.T, tt *testCase) {
 				tt.certClient.
 					On("AllWithOpts", mock.Anything, hcloud.CertificateListOpts{
 						ListOpts: hcloud.ListOpts{
@@ -362,7 +363,6 @@ func TestHCLBServiceOptsBuilder(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.certClient = &mocks.CertificateClient{}
 			tt.certClient.Test(t)

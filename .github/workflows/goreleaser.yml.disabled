@@ -1,0 +1,64 @@
+---
+name: goreleaser
+on:
+  push:
+    tags:
+      - v*
+    branches:
+      - main
+jobs:
+  goreleaser:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Run GoReleaser for snapshot
+        # This does not actually publish anything, but makes sure that the images can be build
+        if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --snapshot --clean
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Git is used to push helm chart to hetznercloud/helm-charts
+      - name: Setup Git
+        if: "startsWith(github.ref, 'refs/tags/')"
+        run: |
+          git config --global user.name hcloud-bot
+          git config --global user.email github-bot@hetzner-cloud.de
+
+      - name: Run GoReleaser for tag
+        if: "startsWith(github.ref, 'refs/tags/')"
+        uses: goreleaser/goreleaser-action@v6
+        with:
+          version: "~> v2"
+          args: release --clean
+        env:
+          # https://github.com/goreleaser/goreleaser/blob/3345f8c9c5b287198a29d3db228388148b788c5e/www/docs/customization/builds.md?plain=1#L416-L418
+          GORELEASER_CURRENT_TAG: ${{ github.ref_name }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHART_REPO_REMOTE: "https://${{ secrets.HCLOUD_BOT_TOKEN }}@github.com/hetznercloud/helm-charts"
+
+      - name: Clear
+        if: always()
+        run: rm -f ${HOME}/.docker/config.json

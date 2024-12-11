@@ -4,8 +4,9 @@ import (
 	"context"
 	"net"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/stretchr/testify/mock"
+
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 type LoadBalancerClient struct {

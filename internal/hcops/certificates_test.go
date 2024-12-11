@@ -6,18 +6,19 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/mocks"
+	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 )
 
 func TestCertificateOps_GetCertificateByNameOrID(t *testing.T) {
 	tests := []certificateOpsTestCase{
 		{
 			Name: "certificate not found",
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				tt.CertClient.
 					On("Get", tt.Ctx, "15").
 					Return(nil, nil, nil)
@@ -31,7 +32,7 @@ func TestCertificateOps_GetCertificateByNameOrID(t *testing.T) {
 		{
 			Name:      "error calling API",
 			ClientErr: errors.New("some error"),
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				tt.CertClient.
 					On("Get", tt.Ctx, "some-cert").
 					Return(nil, nil, tt.ClientErr)
@@ -45,7 +46,7 @@ func TestCertificateOps_GetCertificateByNameOrID(t *testing.T) {
 		{
 			Name:        "certificate found",
 			Certificate: &hcloud.Certificate{ID: 16},
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				tt.CertClient.
 					On("Get", tt.Ctx, "16").
 					Return(tt.Certificate, nil, nil)
@@ -65,7 +66,7 @@ func TestCertificateOps_GetCertificateByLabel(t *testing.T) {
 	tests := []certificateOpsTestCase{
 		{
 			Name: "call to backend fails",
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				tt.CertClient.
 					On("AllWithOpts", tt.Ctx, hcloud.CertificateListOpts{
 						ListOpts: hcloud.ListOpts{LabelSelector: "key=value"},
@@ -81,7 +82,7 @@ func TestCertificateOps_GetCertificateByLabel(t *testing.T) {
 		},
 		{
 			Name: "no matching certificate found",
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				tt.CertClient.
 					On("AllWithOpts", tt.Ctx, hcloud.CertificateListOpts{
 						ListOpts: hcloud.ListOpts{LabelSelector: "key=value"},
@@ -96,7 +97,7 @@ func TestCertificateOps_GetCertificateByLabel(t *testing.T) {
 		},
 		{
 			Name: "more than one matching certificate found",
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				tt.CertClient.
 					On("AllWithOpts", tt.Ctx, hcloud.CertificateListOpts{
 						ListOpts: hcloud.ListOpts{LabelSelector: "key=value"},
@@ -111,7 +112,7 @@ func TestCertificateOps_GetCertificateByLabel(t *testing.T) {
 		},
 		{
 			Name: "exactly one certificate found",
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				tt.CertClient.
 					On("AllWithOpts", tt.Ctx, hcloud.CertificateListOpts{
 						ListOpts: hcloud.ListOpts{LabelSelector: "key=value"},
@@ -133,7 +134,7 @@ func TestCertificateOps_CreateManagedCertificate(t *testing.T) {
 	tests := []certificateOpsTestCase{
 		{
 			Name: "certificate creation fails",
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				tt.CertClient.
 					On("CreateCertificate", tt.Ctx, mock.AnythingOfType("hcloud.CertificateCreateOpts")).
 					Return(nil, nil, errors.New("test error"))
@@ -151,7 +152,7 @@ func TestCertificateOps_CreateManagedCertificate(t *testing.T) {
 		},
 		{
 			Name: "certificate already exists",
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				err := hcloud.Error{Code: hcloud.ErrorCodeUniquenessError}
 				tt.CertClient.
 					On("CreateCertificate", tt.Ctx, mock.AnythingOfType("hcloud.CertificateCreateOpts")).
@@ -169,7 +170,7 @@ func TestCertificateOps_CreateManagedCertificate(t *testing.T) {
 		},
 		{
 			Name: "certificate creation successful",
-			Mock: func(t *testing.T, tt *certificateOpsTestCase) {
+			Mock: func(_ *testing.T, tt *certificateOpsTestCase) {
 				res := hcloud.CertificateCreateResult{Certificate: &hcloud.Certificate{ID: 1}}
 				tt.CertClient.
 					On("CreateCertificate", tt.Ctx, hcloud.CertificateCreateOpts{
@@ -226,7 +227,6 @@ func (tt *certificateOpsTestCase) run(t *testing.T) {
 
 func runCertificateOpsTestCases(t *testing.T, tests []certificateOpsTestCase) {
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.Name, tt.run)
 	}
 }

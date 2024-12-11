@@ -1,7 +1,5 @@
 ---
 linters-settings:
-  errcheck:
-    exclude: ./.errcheck_excludes.txt
   exhaustive:
     default-signifies-exhaustive: true
   gci:
@@ -18,6 +16,11 @@ linters-settings:
       - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
         alias: metav1
 
+      - pkg: github.com/syself/hrobot-go
+        alias: hrobot
+      - pkg: github.com/syself/hrobot-go/models
+        alias: hrobotmodels
+
   misspell:
     locale: "US"
 
@@ -25,10 +28,10 @@ linters:
   disable-all: true
   enable:
     - bodyclose
+    - copyloopvar
     - errcheck
     - errname
     - exhaustive
-    - exportloopref
     - gci
     - gocritic
     - godot
@@ -57,3 +60,4 @@ issues:
     - path: internal/mocks
       linters:
         - unparam
+        - revive
