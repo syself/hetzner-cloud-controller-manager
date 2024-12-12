@@ -229,6 +229,9 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 			name: "bm server",
 			node: &corev1.Node{
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-321"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-server1",
+				},
 			},
 			expected: false,
 		},
@@ -313,6 +316,9 @@ func TestInstances_InstanceMetadataRobotServer(t *testing.T) {
 	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
 
 	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "bm-server1",
+		},
 		Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-321"},
 	})
 	if err != nil {
