@@ -67,6 +67,8 @@ func (tc *TestCluster) Start() error {
 	hcloudClient := hcloud.NewClient(opts...)
 	tc.hcloud = hcloudClient
 
+	// Syself: the e2e tests seem to require a special environment.
+	// I tried it with a kind cluster, but this did not work.
 	// err := os.Setenv("KUBECONFIG", "../../hack/.kubeconfig-"+tc.scope)
 	// if err != nil {
 	// 	return err
