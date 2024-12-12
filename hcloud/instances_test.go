@@ -104,6 +104,9 @@ func TestInstances_InstanceExists(t *testing.T) {
 		}, {
 			name: "existing robot server by id",
 			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-server1",
+				},
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-321"},
 			},
 			expected: true,
@@ -116,6 +119,9 @@ func TestInstances_InstanceExists(t *testing.T) {
 		}, {
 			name: "missing robot server by id",
 			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-server2",
+				},
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-322"},
 			},
 			expected: false,

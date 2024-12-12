@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"regexp"
+	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -82,8 +83,15 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 	return server, nil
 }
 
-func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (*models.Server, error) {
+func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *models.Server, e error) {
 	const op = "robot/getServerByID"
+	defer func() {
+		fmt.Printf("---------- id %v\nname: %q %+v\nout server %+v\nout err: %+v\n%s\n\n", id, node.Name, node, s, e, string(debug.Stack()))
+	}()
+
+	if node.Name == "" {
+		return nil, fmt.Errorf("%s: node name is empty", op)
+	}
 
 	if c == nil {
 		return nil, errMissingRobotCredentials
@@ -101,7 +109,11 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (*model
 	}
 
 	// check whether name matches - otherwise this server does not belong to the respective node anymore
+	if server == nil {
+		return nil, nil
+	}
 	if server.Name != node.Name {
+		fmt.Printf("----------------- name diff server %q node %q\n", server.Name, node.Name)
 		return nil, nil
 	}
 
