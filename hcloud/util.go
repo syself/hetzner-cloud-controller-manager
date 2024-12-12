@@ -82,8 +82,11 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 	return server, nil
 }
 
-func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (*models.Server, error) {
+func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *models.Server, e error) {
 	const op = "robot/getServerByID"
+	if node.Name == "" {
+		return nil, fmt.Errorf("%s: node name is empty", op)
+	}
 
 	if c == nil {
 		return nil, errMissingRobotCredentials
@@ -101,6 +104,9 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (*model
 	}
 
 	// check whether name matches - otherwise this server does not belong to the respective node anymore
+	if server == nil {
+		return nil, nil
+	}
 	if server.Name != node.Name {
 		return nil, nil
 	}
