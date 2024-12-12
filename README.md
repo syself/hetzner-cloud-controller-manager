@@ -15,40 +15,53 @@ A lot of changes were made in the upstream fork, and we don't plan to merge them
 
 Instead we plan to create PRs in upstream, so that our fork is no longer needed.
 
-Features/PRs which are different in our fork
+Features/PRs which are different in our fork. We should create PRs in upstream for these:
 
-* Make ProviderID configurable (hrobot://NNN vs hcloud://bm-NNN)
-* Handle rate limiting for hcloud
-* <https://github.com/syself/hetzner-cloud-controller-manager/pull/42>: Make this configurable in upstream.
-* <https://github.com/syself/hetzner-cloud-controller-manager/pull/41>: Via ROBOT_DEBUG show every stack-trace which uses the robot-API (to debug why rate-limiting was reached)
+* [separate user agent from HCCM](https://github.com/syself/hetzner-cloud-controller-manager/pull/42): Make this configurable in upstream.
+* [ROBOT_DEBUG, show stacktrace on api-calls](https://github.com/syself/hetzner-cloud-controller-manager/pull/41>) Via ROBOT_DEBUG show every stack-trace which uses the robot-API (to debug why rate-limiting was reached)
 * [PR add version information to the controller binary](https://github.com/syself/hetzner-cloud-controller-manager/pull/28): Build process is different in upstream.
 * [PR Add Github WF for releasing](https://github.com/syself/hetzner-cloud-controller-manager/pull/29)
 * [PR entrypoint in container image](https://github.com/syself/hetzner-cloud-controller-manager/pull/25)
-* <https://github.com/syself/hetzner-cloud-controller-manager/pull/20> rate limiting hcloud
+* [PR rate limiting hcloud](https://github.com/syself/hetzner-cloud-controller-manager/pull/20)
 * Upstream has three `ServerGetList` implementations: cache, rate-limited, mock. Our fork has two: mock, cached.
+
+Additional PRs we should create in upstream, so that we can use upstream instead our fork:
+
+* Make ProviderID configurable (hrobot://NNN vs hcloud://bm-NNN)
+* Sort Go imports
+* Compare linters of upstream with the linters of our other repos.
 
 PRs which are **not** needed in upstream, because upstream has this feature:
 
-* <https://github.com/syself/hetzner-cloud-controller-manager/pull/40>
-* <https://github.com/syself/hetzner-cloud-controller-manager/pull/37>: upstream uses ROBOT_ENABLED. We need to set that env var.
-* <https://github.com/syself/hetzner-cloud-controller-manager/pull/32>
-* <https://github.com/syself/hetzner-cloud-controller-manager/pull/22>: Max LB targets reached.
+* [PR getInstanceTypeOfRobotServer: convert invalid characters to dashes](https://github.com/syself/hetzner-cloud-controller-manager/pull/40)
+* [Make robot client optional for lb client](https://github.com/syself/hetzner-cloud-controller-manager/pull/37): upstream uses ROBOT_ENABLED. We need to set that env var.
+* [Fix InstanceExists for baremetal servers, check node name](https://github.com/syself/hetzner-cloud-controller-manager/pull/32)
+* [Handle errors of not enough lb targets](https://github.com/syself/hetzner-cloud-controller-manager/pull/22): Max LB targets reached.
 * [Fix lb default for disable IPv6](https://github.com/syself/hetzner-cloud-controller-manager/pull/21/files)
-* [robot cache](https://github.com/syself/hetzner-cloud-controller-manager/pull/19). This is in upstream
-* <https://github.com/syself/hetzner-cloud-controller-manager/pull/1> Support for robot
+* [robot cache](https://github.com/syself/hetzner-cloud-controller-manager/pull/19)
+* [Support for robot](https://github.com/syself/hetzner-cloud-controller-manager/pull/1)
 
 If you update the Syself fork, please create two PRs for version updates and code updates. Mixing both in one PR makes things harder to understand.
 
-Moved files:
+Files moved by upstream in their fork:
 
 * internal/robot/client/cache/client.go (from Janis Okt 2023) --> internal/robot/cache.go (by Julian Nov 2023)
 * internal/robot/client/interface.go --> internal/robot/interface.go
 * internal/util/util.go GetEnvDuration() --> internal/config/config.go
 * hcloud/util.go --> hcloud/instances_util.go
 
+How to keep our fork up to date: Check which changes were done in upstream. Pick indivual features, if they make sense for us. If unsure,
+don't pick a feature. Instead try to get our features into upstream, and update or dependencies.
+
 TODO:
 
 * from quay.io to ghcr.io
+
+---
+
+End of "About the fork"
+
+---
 
 ## Features
 
