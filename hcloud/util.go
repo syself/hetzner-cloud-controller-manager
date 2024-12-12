@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"runtime/debug"
 	"strconv"
 	"strings"
 
@@ -85,10 +84,6 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 
 func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *models.Server, e error) {
 	const op = "robot/getServerByID"
-	defer func() {
-		fmt.Printf("---------- id %v\nname: %q %+v\nout server %+v\nout err: %+v\n%s\n\n", id, node.Name, node, s, e, string(debug.Stack()))
-	}()
-
 	if node.Name == "" {
 		return nil, fmt.Errorf("%s: node name is empty", op)
 	}
@@ -113,7 +108,6 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *mod
 		return nil, nil
 	}
 	if server.Name != node.Name {
-		fmt.Printf("----------------- name diff server %q node %q\n", server.Name, node.Name)
 		return nil, nil
 	}
 
