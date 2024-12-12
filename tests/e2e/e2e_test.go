@@ -23,14 +23,14 @@ var testCluster TestCluster
 
 func TestMain(m *testing.M) {
 	if err := testCluster.Start(); err != nil {
-		fmt.Printf("%v\n", err)
+		fmt.Printf("testCluster.Start failed: %v\n", err)
 		os.Exit(1)
 	}
 
 	rc := m.Run()
 
 	if err := testCluster.Stop(); err != nil {
-		fmt.Printf("%v\n", err)
+		fmt.Printf("testCluster.Stop failed: %v\n", err)
 		os.Exit(1)
 	}
 	os.Exit(rc)

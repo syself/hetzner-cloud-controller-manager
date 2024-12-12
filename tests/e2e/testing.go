@@ -51,7 +51,7 @@ func (tc *TestCluster) Start() error {
 	if token == "" {
 		buf, err := os.ReadFile(fmt.Sprintf("../../hack/.token-%s", tc.scope))
 		if err != nil {
-			return err
+			return fmt.Errorf("HCLOUD_TOKEN not set and no token file found: %w", err)
 		}
 		token = string(buf)
 	}
@@ -67,10 +67,10 @@ func (tc *TestCluster) Start() error {
 	hcloudClient := hcloud.NewClient(opts...)
 	tc.hcloud = hcloudClient
 
-	err := os.Setenv("KUBECONFIG", "../../hack/.kubeconfig-"+tc.scope)
-	if err != nil {
-		return err
-	}
+	// err := os.Setenv("KUBECONFIG", "../../hack/.kubeconfig-"+tc.scope)
+	// if err != nil {
+	// 	return err
+	// }
 
 	loadingRules := clientcmd.NewDefaultClientConfigLoadingRules()
 	configOverrides := &clientcmd.ConfigOverrides{}
