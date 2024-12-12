@@ -22,6 +22,8 @@ import (
 var testCluster TestCluster
 
 func TestMain(m *testing.M) {
+	fmt.Printf("the e2e tests seem to require a special setup. They are disabled in our fork.\n")
+	os.Exit(1)
 	if err := testCluster.Start(); err != nil {
 		fmt.Printf("testCluster.Start failed: %v\n", err)
 		os.Exit(1)
