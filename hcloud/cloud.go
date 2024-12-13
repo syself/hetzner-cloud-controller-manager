@@ -28,16 +28,14 @@ import (
 	"runtime/debug"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/metadata"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/hotreload"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/robot/client/cache"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/util"
-	hrobot "github.com/syself/hrobot-go"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/tools/record"
 	cloudprovider "k8s.io/cloud-provider"
@@ -52,15 +50,9 @@ const (
 	hcloudDebugENVVar    = "HCLOUD_DEBUG"
 	robotDebugENVVar     = "ROBOT_DEBUG"
 
-	robotUserNameENVVar = "ROBOT_USER_NAME"
-	robotPasswordENVVar = "ROBOT_PASSWORD"
-
 	// Only as reference - is used in hcops package.
 	// Default is 5 minutes.
 	RateLimitWaitTimeRobot = "RATE_LIMIT_WAIT_TIME_ROBOT"
-
-	// default is 5 minutes.
-	CacheTimeout = "CACHE_TIMEOUT"
 
 	// Disable the "master/server is attached to the network" check against the metadata service.
 	hcloudNetworkDisableAttachedCheckENVVar  = "HCLOUD_NETWORK_DISABLE_ATTACHED_CHECK"
@@ -112,18 +104,16 @@ func (lt *LoggingTransport) RoundTrip(req *http.Request) (resp *http.Response, e
 }
 
 func newHcloudClient(rootDir string) (*hcloud.Client, error) {
-	hcloudTokenFile := filepath.Join(rootDir, "etc/hetzner-secret/hcloud")
-	data, err := os.ReadFile(hcloudTokenFile)
-	var token string
+	secretDir := filepath.Join(rootDir, "etc", "hetzner-secret")
+	token, err := hotreload.ReadHcloudCredentialsFromDirectory(secretDir)
 	if err != nil {
-		klog.V(1).Infof("reading Hetzner Cloud token from %q failed. Will try env var: %s", hcloudTokenFile, err.Error())
+		klog.V(1).Infof("reading Hetzner Cloud token from directory failed. Will try env var: %s", err.Error())
 		token = os.Getenv(hcloudTokenENVVar)
 		if token == "" {
-			return nil, fmt.Errorf("Either file %q or environment variable %q is required", hcloudTokenFile, hcloudTokenENVVar)
+			return nil, fmt.Errorf("Either token from directory %q or environment variable %q is required", secretDir, hcloudTokenENVVar)
 		}
 	} else {
-		token = strings.TrimSpace(string(data))
-		klog.V(1).Infof("reading Hetzner Cloud token from %q. The controller will reload the credentials, when the file changes", hcloudTokenFile)
+		klog.V(1).Infof("reading Hetzner Cloud token from %q. The controller will reload the credentials, when the file changes", secretDir)
 	}
 	if len(token) != 64 {
 		return nil, fmt.Errorf("entered token is invalid (must be exactly 64 characters long)")
@@ -150,56 +140,29 @@ func newHcloudClient(rootDir string) (*hcloud.Client, error) {
 	return client, nil
 }
 
-func newRobotClient() (robotclient.Client, error) {
-	const op = "hcloud/newRobotClient"
-	cacheTimeout, err := util.GetEnvDuration(CacheTimeout)
-	if err != nil {
-		return nil, fmt.Errorf("%s: %w", op, err)
-	}
-
-	if cacheTimeout == 0 {
-		cacheTimeout = 5 * time.Minute
-	}
-
-	robotUserName := os.Getenv(robotUserNameENVVar)
-	robotPassword := os.Getenv(robotPasswordENVVar)
-	var robotClient robotclient.Client
-	if robotUserName == "" || robotPassword == "" {
-		klog.Infof("Hetzner robot is not support because of insufficient credentials. Robot user name specified: %v. Robot password specified: %v", robotUserName != "", robotPassword != "")
-		return nil, nil
-	}
-	var c hrobot.RobotClient
-	if os.Getenv(robotDebugENVVar) == "true" {
-		client := &http.Client{
-			Transport: &LoggingTransport{
-				roundTripper: http.DefaultTransport,
-			},
-		}
-		c = hrobot.NewBasicAuthClientWithCustomHttpClient(robotUserName, robotPassword, client)
-		klog.Info("Enabled robot API debugging")
-	} else {
-		c = hrobot.NewBasicAuthClient(robotUserName, robotPassword)
-		klog.Infof("Not enabling robot API debugging. Set env var %s=true to enable it.", robotDebugENVVar)
-	}
-	robotClient = cache.NewClient(c, cacheTimeout)
-	return robotClient, nil
-}
-
 func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 	const op = "hcloud/newCloud"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
 
-	wd, err := os.Getwd()
+	rootDir, err := os.Getwd()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
-	hcloudClient, err := newHcloudClient(wd)
+	hcloudClient, err := newHcloudClient(rootDir)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	metadataClient := metadata.NewClient()
 
-	robotClient, err := newRobotClient()
+	var httpClient *http.Client
+	if os.Getenv(robotDebugENVVar) == "true" {
+		httpClient = &http.Client{
+			Transport: &LoggingTransport{
+				roundTripper: http.DefaultTransport,
+			},
+		}
+	}
+	robotClient, err := cache.NewCachedRobotClient(rootDir, httpClient, "")
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -272,6 +235,16 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
+	secretsDir := filepath.Join(rootDir, "etc", "hetzner-secret")
+	_, err = os.Stat(secretsDir)
+	if err == nil {
+		// Watch for changes in the secrets directory
+		err := hotreload.Watch(secretsDir, robotClient, hcloudClient)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
+	}
+
 	return &cloud{
 		hcloudClient: hcloudClient,
 		robotClient:  robotClient,
@@ -280,16 +253,6 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		routes:       nil,
 		networkID:    networkID,
 	}, nil
-}
-
-func updateHcloudToken(client *hcloud.Client, token string) error {
-	op := "hcloud/updateHcloudToken"
-	if len(token) != 64 {
-		return fmt.Errorf("%s: entered token is invalid (must be exactly 64 characters long)", op)
-	}
-	hcloud.WithToken(token)(client)
-	klog.Infof("Hetzner Cloud token updated to new value: %s...", token[:5])
-	return nil
 }
 
 func (c *cloud) Initialize(_ cloudprovider.ControllerClientBuilder, _ <-chan struct{}) {

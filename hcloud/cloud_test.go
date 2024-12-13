@@ -397,7 +397,7 @@ func TestLoadBalancerDefaultsFromEnv(t *testing.T) {
 	}
 }
 
-func Test_newHcloudClient(t *testing.T) {
+func Test_updateHcloudCredentials(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)
 	defer server.Close()
@@ -439,7 +439,7 @@ func Test_newHcloudClient(t *testing.T) {
 
 	token2 := "22222ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"
 
-	err = updateHcloudToken(hcloudClient, token2)
+	err = updateHcloudCredentials(hcloudClient, token2)
 	require.NoError(t, err)
 
 	mux.HandleFunc("/servers/2", func(w http.ResponseWriter, r *http.Request) {

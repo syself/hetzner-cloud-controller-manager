@@ -1,16 +1,30 @@
 package cache
 
 import (
+	"fmt"
+	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 
-	"github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/hotreload"
+	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/util"
 	hrobot "github.com/syself/hrobot-go"
 	"github.com/syself/hrobot-go/models"
+	"k8s.io/klog/v2"
+)
+
+const (
+	robotDebugENVVar    = "ROBOT_DEBUG"
+	robotUserNameENVVar = "ROBOT_USER_NAME"
+	robotPasswordENVVar = "ROBOT_PASSWORD"
+	cacheTimeoutENVVar  = "CACHE_TIMEOUT"
 )
 
 var handler = &cacheRobotClient{}
 
-var _ client.Client = handler
+var _ robotclient.Client = handler
 
 type cacheRobotClient struct {
 	robotClient hrobot.RobotClient
@@ -23,10 +37,52 @@ type cacheRobotClient struct {
 	m map[int]*models.Server
 }
 
-func NewClient(robotClient hrobot.RobotClient, cacheTimeout time.Duration) client.Client {
+func NewClient(robotClient hrobot.RobotClient, cacheTimeout time.Duration) robotclient.Client {
 	handler.timeout = cacheTimeout
 	handler.robotClient = robotClient
 	return handler
+}
+
+// NewCachedRobotClient creates a new robot client with caching enabled.
+// rootDir: root directory for reading credentials from file.
+// httpClient: http client to use for the robot client.
+// baseURL: base URL for the robot client. Optional, leave empty for default.
+func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL string) (robotclient.Client, error) {
+	const op = "hcloud/newRobotClient"
+	cacheTimeout, err := util.GetEnvDuration(cacheTimeoutENVVar)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	if cacheTimeout == 0 {
+		cacheTimeout = 5 * time.Minute
+	}
+
+	secretsDir := filepath.Join(rootDir, "etc", "hetzner-secret")
+	_, err = os.Stat(secretsDir)
+	var robotUser, robotPassword string
+	if err != nil {
+		klog.V(1).Infof("reading Hetzner Robot credentials from file failed. %q does not exist", secretsDir)
+		robotUser = os.Getenv(robotUserNameENVVar)
+		robotPassword = os.Getenv(robotPasswordENVVar)
+		if robotUser == "" || robotPassword == "" {
+			klog.Infof("Hetzner robot is not support because of insufficient credentials: Env vars (%q, %q) not set, and from file failed: %s",
+				robotUserNameENVVar, robotPasswordENVVar,
+				err.Error())
+			return nil, nil
+		}
+	} else {
+		robotUser, robotPassword, err = hotreload.ReadRobotCredentialsFromDirectory(secretsDir)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", op, err)
+		}
+	}
+	c := hrobot.NewBasicAuthClientWithCustomHttpClient(robotUser, robotPassword, httpClient)
+	if baseURL != "" {
+		c.SetBaseURL(baseURL)
+	}
+	robotClient := NewClient(c, cacheTimeout)
+	return robotClient, nil
 }
 
 func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
