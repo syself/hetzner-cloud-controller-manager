@@ -117,14 +117,14 @@ func newHcloudClient(rootDir string) (*hcloud.Client, error) {
 	data, err := os.ReadFile(hcloudTokenFile)
 	var token string
 	if err != nil {
-		klog.Infof("reading Hetzner Cloud token from %q failed. Will try env var: %s", hcloudTokenFile, err.Error())
+		klog.V(1).Infof("reading Hetzner Cloud token from %q failed. Will try env var: %s", hcloudTokenFile, err.Error())
 		token := os.Getenv(hcloudTokenENVVar)
 		if token == "" {
 			return nil, fmt.Errorf("Either file %q or environment variable %q is required", hcloudTokenFile, hcloudTokenENVVar)
 		}
-		klog.Warningf("Using token from environment variable. Using file %q is preferred, since it allways hot-reloading.", hcloudTokenFile)
 	} else {
 		token = strings.TrimSpace(string(data))
+		klog.V(1).Infof("reading Hetzner Cloud token from %q. The controller will reload the credentials, when the file changes", hcloudTokenFile)
 	}
 	if len(token) != 64 {
 		return nil, fmt.Errorf("entered token is invalid (must be exactly 64 characters long)")
@@ -151,6 +151,41 @@ func newHcloudClient(rootDir string) (*hcloud.Client, error) {
 	return client, nil
 }
 
+func newRobotClient() (robotclient.Client, error) {
+	const op = "hcloud/newRobotClient"
+	cacheTimeout, err := util.GetEnvDuration(CacheTimeout)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	if cacheTimeout == 0 {
+		cacheTimeout = 5 * time.Minute
+	}
+
+	robotUserName := os.Getenv(robotUserNameENVVar)
+	robotPassword := os.Getenv(robotPasswordENVVar)
+	var robotClient robotclient.Client
+	if robotUserName == "" || robotPassword == "" {
+		klog.Infof("Hetzner robot is not support because of insufficient credentials. Robot user name specified: %v. Robot password specified: %v", robotUserName != "", robotPassword != "")
+		return nil, nil
+	}
+	var c hrobot.RobotClient
+	if os.Getenv(robotDebugENVVar) == "true" {
+		client := &http.Client{
+			Transport: &LoggingTransport{
+				roundTripper: http.DefaultTransport,
+			},
+		}
+		c = hrobot.NewBasicAuthClientWithCustomHttpClient(robotUserName, robotPassword, client)
+		klog.Info("Enabled robot API debugging")
+	} else {
+		c = hrobot.NewBasicAuthClient(robotUserName, robotPassword)
+		klog.Infof("Not enabling robot API debugging. Set env var %s=true to enable it.", robotDebugENVVar)
+	}
+	robotClient = cache.NewClient(c, cacheTimeout)
+	return robotClient, nil
+}
+
 func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 	const op = "hcloud/newCloud"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
@@ -170,36 +205,9 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 	}
 	metadataClient := metadata.NewClient()
 
-	robotUserName := os.Getenv(robotUserNameENVVar)
-	robotPassword := os.Getenv(robotPasswordENVVar)
-
-	cacheTimeout, err := util.GetEnvDuration(CacheTimeout)
+	robotClient, err := newRobotClient()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
-	}
-
-	if cacheTimeout == 0 {
-		cacheTimeout = 5 * time.Minute
-	}
-
-	var robotClient robotclient.Client
-	if robotUserName != "" && robotPassword != "" {
-		var c hrobot.RobotClient
-		if os.Getenv(robotDebugENVVar) == "true" {
-			client := &http.Client{
-				Transport: &LoggingTransport{
-					roundTripper: http.DefaultTransport,
-				},
-			}
-			c = hrobot.NewBasicAuthClientWithCustomHttpClient(robotUserName, robotPassword, client)
-			klog.Info("Enabled robot API debugging")
-		} else {
-			c = hrobot.NewBasicAuthClient(robotUserName, robotPassword)
-			klog.Infof("Not enabling robot API debugging. Set env var %s=true to enable it.", robotDebugENVVar)
-		}
-		robotClient = cache.NewClient(c, cacheTimeout)
-	} else {
-		klog.Infof("Hetzner robot is not support because of insufficient credentials. Robot user name specified: %v. Robot password specified: %v", robotUserName != "", robotPassword != "")
 	}
 
 	var networkID int64
@@ -285,6 +293,7 @@ func updateHcloudToken(client *hcloud.Client, token string) error {
 		return fmt.Errorf("entered token is invalid (must be exactly 64 characters long)")
 	}
 	hcloud.WithToken(token)(client)
+	klog.Infof("Hetzner Cloud token updated to new value: %s...", token[:5])
 	return nil
 }
 

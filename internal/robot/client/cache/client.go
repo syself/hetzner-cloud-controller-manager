@@ -10,6 +10,8 @@ import (
 
 var handler = &cacheRobotClient{}
 
+var _ client.Client = handler
+
 type cacheRobotClient struct {
 	robotClient hrobot.RobotClient
 	timeout     time.Duration
@@ -89,4 +91,13 @@ func (c *cacheRobotClient) shouldSync() bool {
 		return true
 	}
 	return false
+}
+
+func (c *cacheRobotClient) SetCredentials(username, password string) error {
+	err := c.robotClient.SetCredentials(username, password)
+	if err != nil {
+		return err
+	}
+	c.m = nil
+	return nil
 }
