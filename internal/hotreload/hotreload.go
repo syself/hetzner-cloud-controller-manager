@@ -22,11 +22,8 @@ func Watch(hetznerSecretDirectory string, robotClient robotclient.Client, hcloud
 
 	go func() {
 		for {
-			fmt.Printf("################################# \n")
-
 			select {
 			case event := <-watcher.Events:
-				fmt.Printf("################################# %s\n", event.String())
 				if !isValidEvent(event) {
 					continue
 				}
@@ -41,8 +38,6 @@ func Watch(hetznerSecretDirectory string, robotClient robotclient.Client, hcloud
 					LoadHcloudCredentials(hetznerSecretDirectory, hcloudClient)
 				}
 			case err := <-watcher.Errors:
-				fmt.Printf("eeeeeeeeee################################# \n")
-
 				klog.Infof("error: %s", err)
 			}
 		}
@@ -74,7 +69,6 @@ func LoadRobotCredentials(hetznerSecretDirectory string, robotClient robotclient
 		return fmt.Errorf("reading robot credentials from secret: %w", err)
 	}
 	if username == oldRobotUser && password == oldRobotPassword {
-		klog.Info("Hetzner Robot credentials unchanged")
 		return nil
 	}
 	oldRobotUser = username
@@ -120,7 +114,6 @@ func LoadHcloudCredentials(hetznerSecretDirectory string, hcloudClient *hcloud.C
 		return fmt.Errorf("%s: entered token is invalid (must be exactly 64 characters long)", op)
 	}
 	if token == oldHcloudToken {
-		klog.Info("Hetzner Cloud token unchanged")
 		return nil
 	}
 	oldHcloudToken = token
