@@ -18,18 +18,22 @@ package hcloud
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/schema"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
 	hrobot "github.com/syself/hrobot-go"
+	corev1 "k8s.io/api/core/v1"
 )
 
 type testEnv struct {
@@ -395,4 +399,65 @@ func TestLoadBalancerDefaultsFromEnv(t *testing.T) {
 			assert.Equal(t, c.expDisableIPv6, disableIPv6)
 		})
 	}
+}
+
+func Test_newHcloudClient(t *testing.T) {
+	mux := http.NewServeMux()
+	server := httptest.NewServer(mux)
+	defer server.Close()
+
+	os.Unsetenv("HCLOUD_TOKEN")
+
+	tmp, err := os.MkdirTemp("", "Test_newHcloudClient-*")
+	require.NoError(t, err)
+
+	err = os.MkdirAll(filepath.Join(tmp, "etc", "hetzner-secret"), 0o755)
+	require.NoError(t, err)
+
+	token := "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"
+	err = os.WriteFile(filepath.Join(tmp, "etc", "hetzner-secret", "hcloud"),
+		[]byte(token), 0o600)
+	require.NoError(t, err)
+
+	hcloudClient, err := newHcloudClient(tmp)
+	require.NoError(t, err)
+
+	hcloud.WithEndpoint(server.URL)(hcloudClient)
+
+	mux.HandleFunc("/servers/1", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, r.Header.Get("Authorization"), "Bearer "+token)
+		json.NewEncoder(w).Encode(schema.ServerGetResponse{
+			Server: schema.Server{
+				ID:   1,
+				Name: "foobar",
+			},
+		})
+	})
+	i := newInstances(hcloudClient, nil, AddressFamilyIPv4, 0)
+
+	node := &corev1.Node{
+		Spec: corev1.NodeSpec{ProviderID: "hcloud://1"},
+	}
+	_, err = i.InstanceExists(context.TODO(), node)
+	require.NoError(t, err)
+
+	token2 := "22222ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"
+
+	err = updateHcloudToken(hcloudClient, token2)
+	require.NoError(t, err)
+
+	mux.HandleFunc("/servers/2", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, r.Header.Get("Authorization"), "Bearer "+token2)
+		json.NewEncoder(w).Encode(schema.ServerGetResponse{
+			Server: schema.Server{
+				ID:   2,
+				Name: "foobar2",
+			},
+		})
+	})
+	node2 := &corev1.Node{
+		Spec: corev1.NodeSpec{ProviderID: "hcloud://2"},
+	}
+	_, err = i.InstanceExists(context.TODO(), node2)
+	require.NoError(t, err)
 }

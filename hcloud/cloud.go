@@ -112,13 +112,8 @@ func (lt *LoggingTransport) RoundTrip(req *http.Request) (resp *http.Response, e
 	return resp, nil
 }
 
-func newHcloudClient() (*hcloud.Client, error) {
-	panic(1)
-	// We use a relative path "etc" instead of "/etc", so we can test that locally.
-	hcloudTokenFile, err := filepath.Abs("etc/hetzner/hetzner-secret/hcloud")
-	if err != nil {
-		return nil, fmt.Errorf("getting absolute path of %q failed: %w", hcloudTokenFile, err)
-	}
+func newHcloudClient(rootDir string) (*hcloud.Client, error) {
+	hcloudTokenFile := filepath.Join(rootDir, "etc/hetzner-secret/hcloud")
 	data, err := os.ReadFile(hcloudTokenFile)
 	var token string
 	if err != nil {
@@ -165,7 +160,11 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("environment variable %q is required", nodeNameENVVar)
 	}
 
-	hcloudClient, err := newHcloudClient()
+	wd, err := os.Getwd()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	hcloudClient, err := newHcloudClient(wd)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -279,6 +278,14 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		routes:       nil,
 		networkID:    networkID,
 	}, nil
+}
+
+func updateHcloudToken(client *hcloud.Client, token string) error {
+	if len(token) != 64 {
+		return fmt.Errorf("entered token is invalid (must be exactly 64 characters long)")
+	}
+	hcloud.WithToken(token)(client)
+	return nil
 }
 
 func (c *cloud) Initialize(_ cloudprovider.ControllerClientBuilder, _ <-chan struct{}) {
