@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/hotreload"
 	hrobot "github.com/syself/hrobot-go"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -407,15 +408,18 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	tmp, err := os.MkdirTemp("", "Test_newHcloudClient-*")
 	require.NoError(t, err)
 
+	secretsDir := filepath.Join(tmp, "etc", "hetzner-secret")
+	require.NoError(t, err)
 	err = os.MkdirAll(filepath.Join(tmp, "etc", "hetzner-secret"), 0o755)
 	require.NoError(t, err)
 
 	token := "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"
-	err = os.WriteFile(filepath.Join(tmp, "etc", "hetzner-secret", "hcloud"),
-		[]byte(token), 0o600)
+	err = writeCredentials(secretsDir, token)
+	require.NoError(t, err)
+	hcloudClient, err := newHcloudClient(tmp)
 	require.NoError(t, err)
 
-	hcloudClient, err := newHcloudClient(tmp)
+	err = hotreload.Watch(secretsDir, nil, hcloudClient)
 	require.NoError(t, err)
 
 	hcloud.WithEndpoint(server.URL)(hcloudClient)
@@ -437,10 +441,20 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	_, err = i.InstanceExists(context.TODO(), node)
 	require.NoError(t, err)
 
+	oldCounter := hotreload.HcloudTokenReloadCounter
 	token2 := "22222ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"
-
-	err = updateHcloudCredentials(hcloudClient, token2)
+	err = writeCredentials(secretsDir, token2)
 	require.NoError(t, err)
+	start := time.Now()
+	for {
+		if hotreload.HcloudTokenReloadCounter > oldCounter {
+			break
+		}
+		if time.Since(start) > time.Second*3 {
+			t.Fatal("timeout waiting for reload")
+		}
+		time.Sleep(time.Millisecond * 100)
+	}
 
 	mux.HandleFunc("/servers/2", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, r.Header.Get("Authorization"), "Bearer "+token2)
@@ -456,4 +470,9 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	}
 	_, err = i.InstanceExists(context.TODO(), node2)
 	require.NoError(t, err)
+}
+
+func writeCredentials(secretsDir, token string) error {
+	return os.WriteFile(filepath.Join(secretsDir, "hcloud"),
+		[]byte(token), 0o600)
 }
