@@ -98,15 +98,15 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *mod
 	}
 
 	server, err := c.ServerGet(id)
-	if err != nil && !models.IsError(err, models.ErrorCodeServerNotFound) {
+	if models.IsError(err, models.ErrorCodeServerNotFound) {
+		return nil, nil
+	}
+	if err != nil {
 		hcops.HandleRateLimitExceededError(err, node)
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	// check whether name matches - otherwise this server does not belong to the respective node anymore
-	if server == nil {
-		return nil, nil
-	}
 	if server.Name != node.Name {
 		return nil, nil
 	}
