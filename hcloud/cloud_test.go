@@ -77,7 +77,6 @@ func TestNewCloud(t *testing.T) {
 	resetEnv := Setenv(t,
 		"HCLOUD_ENDPOINT", env.Server.URL,
 		"HCLOUD_TOKEN", "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jN_NOT_VALID_dzhepnahq",
-		"NODE_NAME", "test",
 		"HCLOUD_METRICS_ENABLED", "false",
 	)
 	defer resetEnv()
@@ -104,7 +103,7 @@ func TestNewCloudWrongTokenSize(t *testing.T) {
 
 	var config bytes.Buffer
 	_, err := newCloud(&config)
-	if err == nil || err.Error() != "entered token is invalid (must be exactly 64 characters long)" {
+	if err == nil || err.Error() != "hcloud/newCloud: entered token is invalid (must be exactly 64 characters long)" {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 }
@@ -113,7 +112,6 @@ func TestNewCloudConnectionNotPossible(t *testing.T) {
 	resetEnv := Setenv(t,
 		"HCLOUD_ENDPOINT", "http://127.0.0.1:4711/v1",
 		"HCLOUD_TOKEN", "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jN_NOT_VALID_dzhepnahq",
-		"NODE_NAME", "test",
 		"HCLOUD_METRICS_ENABLED", "false",
 	)
 	defer resetEnv()
@@ -130,7 +128,6 @@ func TestNewCloudInvalidToken(t *testing.T) {
 	resetEnv := Setenv(t,
 		"HCLOUD_ENDPOINT", env.Server.URL,
 		"HCLOUD_TOKEN", "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jN_NOT_VALID_dzhepnahq",
-		"NODE_NAME", "test",
 		"HCLOUD_METRICS_ENABLED", "false",
 	)
 	defer resetEnv()
@@ -158,7 +155,6 @@ func TestCloud(t *testing.T) {
 	resetEnv := Setenv(t,
 		"HCLOUD_ENDPOINT", env.Server.URL,
 		"HCLOUD_TOKEN", "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jN_NOT_VALID_dzhepnahq",
-		"NODE_NAME", "test",
 		"HCLOUD_METRICS_ENABLED", "false",
 		"ROBOT_USER_NAME", "user",
 		"ROBOT_PASSWORD", "pass123",

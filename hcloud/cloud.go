@@ -74,7 +74,6 @@ const (
 	hcloudLoadBalancersDisableIPv6           = "HCLOUD_LOAD_BALANCERS_DISABLE_IPV6"
 	hcloudMetricsEnabledENVVar               = "HCLOUD_METRICS_ENABLED"
 	hcloudMetricsAddress                     = ":8233"
-	nodeNameENVVar                           = "NODE_NAME"
 	providerName                             = "hcloud"
 	hostNamePrefixRobot                      = "bm-"
 )
@@ -118,7 +117,7 @@ func newHcloudClient(rootDir string) (*hcloud.Client, error) {
 	var token string
 	if err != nil {
 		klog.V(1).Infof("reading Hetzner Cloud token from %q failed. Will try env var: %s", hcloudTokenFile, err.Error())
-		token := os.Getenv(hcloudTokenENVVar)
+		token = os.Getenv(hcloudTokenENVVar)
 		if token == "" {
 			return nil, fmt.Errorf("Either file %q or environment variable %q is required", hcloudTokenFile, hcloudTokenENVVar)
 		}
@@ -189,11 +188,6 @@ func newRobotClient() (robotclient.Client, error) {
 func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 	const op = "hcloud/newCloud"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
-
-	nodeName := os.Getenv(nodeNameENVVar)
-	if nodeName == "" {
-		return nil, fmt.Errorf("environment variable %q is required", nodeNameENVVar)
-	}
 
 	wd, err := os.Getwd()
 	if err != nil {
@@ -289,8 +283,9 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 }
 
 func updateHcloudToken(client *hcloud.Client, token string) error {
+	op := "hcloud/updateHcloudToken"
 	if len(token) != 64 {
-		return fmt.Errorf("entered token is invalid (must be exactly 64 characters long)")
+		return fmt.Errorf("%s: entered token is invalid (must be exactly 64 characters long)", op)
 	}
 	hcloud.WithToken(token)(client)
 	klog.Infof("Hetzner Cloud token updated to new value: %s...", token[:5])
