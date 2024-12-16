@@ -16,12 +16,16 @@ import (
 )
 
 var (
-	oldRobotUser       string
-	oldRobotPassword   string
+	oldRobotUser     string
+	oldRobotPassword string
+	// RobotReloadCounter gets incremented when the credentials get reloaded.
+	// Mosty used for testing.
 	RobotReloadCounter uint64
 	robotMutex         sync.Mutex
 
-	oldHcloudToken           string
+	oldHcloudToken string
+	// HcloudTokenReloadCounter gets incremented when the credentials get reloaded.
+	// Mosty used for testing.
 	HcloudTokenReloadCounter uint64
 	hcloudMutex              sync.Mutex
 )
