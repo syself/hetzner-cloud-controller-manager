@@ -105,7 +105,7 @@ func (lt *LoggingTransport) RoundTrip(req *http.Request) (resp *http.Response, e
 
 func newHcloudClient(rootDir string) (*hcloud.Client, error) {
 	secretDir := filepath.Join(rootDir, "etc", "hetzner-secret")
-	token, err := hotreload.ReadHcloudCredentialsFromDirectory(secretDir)
+	token, err := hotreload.GetInitialHcloudCredentialsFromDirectory(secretDir)
 	if err != nil {
 		klog.V(1).Infof("reading Hetzner Cloud token from directory failed. Will try env var: %s", err.Error())
 		token = os.Getenv(hcloudTokenENVVar)

@@ -72,7 +72,7 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 			return nil, nil
 		}
 	} else {
-		robotUser, robotPassword, err = hotreload.ReadRobotCredentialsFromDirectory(secretsDir)
+		robotUser, robotPassword, err = hotreload.GetInitialRobotCredentials(secretsDir)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}

@@ -30,6 +30,12 @@ func Test_updateRobotCredentials(t *testing.T) {
 	err = os.MkdirAll(filepath.Join(tmp, "etc", "hetzner-secret"), 0o755)
 	require.NoError(t, err)
 
+	err = os.Symlink("..data/robot-user", filepath.Join(tmp, "etc", "hetzner-secret", "robot-user"))
+	require.NoError(t, err)
+
+	err = os.Symlink("..data/robot-password", filepath.Join(tmp, "etc", "hetzner-secret", "robot-password"))
+	require.NoError(t, err)
+
 	err = writeCredentials(tmp, "my-robot-user", "my-robot-password")
 	require.NoError(t, err)
 
@@ -42,7 +48,7 @@ func Test_updateRobotCredentials(t *testing.T) {
 		json.NewEncoder(w).Encode([]models.ServerResponse{
 			{
 				Server: models.Server{
-					ServerIP:      "123.123.123.123",
+					ServerIP:      "123.123.123.12",
 					ServerIPv6Net: "2a01:f48:111:4221::",
 					ServerNumber:  321,
 					Name:          "bm-server1",
@@ -66,6 +72,7 @@ func Test_updateRobotCredentials(t *testing.T) {
 	require.NoError(t, err)
 	start := time.Now()
 	for {
+		// if hotreload.RobotReloadCounter > oldCount {
 		if hotreload.RobotReloadCounter > oldCount {
 			break
 		}
@@ -82,15 +89,26 @@ func Test_updateRobotCredentials(t *testing.T) {
 }
 
 func writeCredentials(tmpDir, user, password string) error {
-	err := os.WriteFile(filepath.Join(tmpDir, "etc", "hetzner-secret", "robot-user"),
+	newDir := filepath.Join(tmpDir, "etc", "hetzner-secret", "..dataNew")
+	if err := os.MkdirAll(newDir, 0o700); err != nil {
+		return err
+	}
+	err := os.WriteFile(filepath.Join(newDir, "robot-user"),
 		[]byte(user), 0o600)
 	if err != nil {
 		return err
 	}
 
-	err = os.WriteFile(filepath.Join(tmpDir, "etc", "hetzner-secret", "robot-password"),
+	err = os.WriteFile(filepath.Join(newDir, "robot-password"),
 		[]byte(password), 0o600)
 	if err != nil {
+		return err
+	}
+	targetDir := filepath.Join(tmpDir, "etc", "hetzner-secret", "..data")
+	if err := os.RemoveAll(targetDir); err != nil {
+		return err
+	}
+	if err := os.Rename(newDir, targetDir); err != nil {
 		return err
 	}
 	return nil
