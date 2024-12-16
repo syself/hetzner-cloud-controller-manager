@@ -441,13 +441,13 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	_, err = i.InstanceExists(context.TODO(), node)
 	require.NoError(t, err)
 
-	oldCounter := hotreload.HcloudTokenReloadCounter
+	oldCounter := hotreload.GetHcloudReloadCounter()
 	token2 := "22222ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"
 	err = writeCredentials(secretsDir, token2)
 	require.NoError(t, err)
 	start := time.Now()
 	for {
-		if hotreload.HcloudTokenReloadCounter > oldCounter {
+		if hotreload.GetHcloudReloadCounter() > oldCounter {
 			break
 		}
 		if time.Since(start) > time.Second*3 {

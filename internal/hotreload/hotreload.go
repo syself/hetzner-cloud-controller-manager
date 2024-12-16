@@ -7,7 +7,6 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
-	"sync/atomic"
 
 	fsnotify "github.com/fsnotify/fsnotify"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
@@ -23,17 +22,29 @@ var (
 	oldRobotPassword string
 	oldHcloudToken   string
 
-	// RobotReloadCounter gets incremented when the credentials get reloaded.
+	// robotReloadCounter gets incremented when the credentials get reloaded.
 	// Mosty used for testing.
-	RobotReloadCounter uint64
+	robotReloadCounter uint64
 
-	// HcloudTokenReloadCounter gets incremented when the credentials get reloaded.
+	// hcloudTokenReloadCounter gets incremented when the credentials get reloaded.
 	// Mosty used for testing.
-	HcloudTokenReloadCounter uint64
+	hcloudTokenReloadCounter uint64
 
 	hcloudMutex sync.Mutex
 	robotMutex  sync.Mutex
 )
+
+func GetRobotReloadCounter() uint64 {
+	robotMutex.Lock()
+	defer robotMutex.Unlock()
+	return robotReloadCounter
+}
+
+func GetHcloudReloadCounter() uint64 {
+	hcloudMutex.Lock()
+	defer hcloudMutex.Unlock()
+	return hcloudTokenReloadCounter
+}
 
 // Watch the mounted secrets. Reload the credentials, when the files get updated. The robotClient can be nil.
 func Watch(hetznerSecretDirectory string, hcloudClient *hcloud.Client, robotClient robotclient.Client) error {
@@ -112,7 +123,7 @@ func loadRobotCredentials(hetznerSecretDirectory string, robotClient robotclient
 	}
 	oldRobotUser = username
 	oldRobotPassword = password
-	atomic.AddUint64(&RobotReloadCounter, 1)
+	robotReloadCounter++
 	err = robotClient.SetCredentials(username, password)
 	if err != nil {
 		return fmt.Errorf("SetCredentials: %w", err)
@@ -160,7 +171,7 @@ func loadHcloudCredentials(hetznerSecretDirectory string, hcloudClient *hcloud.C
 		return nil
 	}
 	oldHcloudToken = token
-	atomic.AddUint64(&HcloudTokenReloadCounter, 1)
+	hcloudTokenReloadCounter++
 	hcloud.WithToken(token)(hcloudClient)
 	klog.Infof("Hetzner Cloud token updated to new value: %s...", token[:5])
 	return nil

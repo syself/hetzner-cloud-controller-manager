@@ -67,13 +67,13 @@ func Test_updateRobotCredentials(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
 
-	oldCount := hotreload.RobotReloadCounter
+	oldCount := hotreload.GetRobotReloadCounter()
 	err = writeCredentials(tmp, "user2", "password2")
 	require.NoError(t, err)
 	start := time.Now()
 	for {
-		// if hotreload.RobotReloadCounter > oldCount {
-		if hotreload.RobotReloadCounter > oldCount {
+		// if hotreload.robotReloadCounter > oldCount {
+		if hotreload.GetRobotReloadCounter() > oldCount {
 			break
 		}
 		if time.Since(start) > time.Second*3 {
