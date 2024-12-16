@@ -154,6 +154,7 @@ func (c *cacheRobotClient) SetCredentials(username, password string) error {
 	if err != nil {
 		return err
 	}
+	// The credentials have been updated, so we need to invalidate the cache.
 	c.m = nil
 	return nil
 }
