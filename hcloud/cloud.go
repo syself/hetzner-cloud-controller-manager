@@ -239,7 +239,7 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 	_, err = os.Stat(secretsDir)
 	if err == nil {
 		// Watch for changes in the secrets directory
-		err := hotreload.Watch(secretsDir, robotClient, hcloudClient)
+		err := hotreload.Watch(secretsDir, hcloudClient, robotClient)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}

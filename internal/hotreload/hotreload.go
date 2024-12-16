@@ -1,6 +1,7 @@
 package hotreload
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,7 +15,8 @@ import (
 	"k8s.io/klog/v2"
 )
 
-func Watch(hetznerSecretDirectory string, robotClient robotclient.Client, hcloudClient *hcloud.Client) error {
+// Watch the mounted secrets. Reload the credentials, when the files get updated. The robotClient can be nil.
+func Watch(hetznerSecretDirectory string, hcloudClient *hcloud.Client, robotClient robotclient.Client) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		klog.Fatal(err)
@@ -27,16 +29,32 @@ func Watch(hetznerSecretDirectory string, robotClient robotclient.Client, hcloud
 				if !isValidEvent(event) {
 					continue
 				}
-				klog.Infof("Secret file changed: %s", event.String())
 				baseName := filepath.Base(event.Name)
+				var err error
 				switch baseName {
 				case "robot-user":
-					LoadRobotCredentials(hetznerSecretDirectory, robotClient)
+					err = LoadRobotCredentials(hetznerSecretDirectory, robotClient)
 				case "robot-password":
-					LoadRobotCredentials(hetznerSecretDirectory, robotClient)
+					err = LoadRobotCredentials(hetznerSecretDirectory, robotClient)
 				case "hcloud":
-					LoadHcloudCredentials(hetznerSecretDirectory, hcloudClient)
+					err = LoadHcloudCredentials(hetznerSecretDirectory, hcloudClient)
+				case "..data":
+					// The files (for example hcloud) are symlinks to ..data/. For example to ../data/hcloud
+					// This means the files/symlinks don't change. When the secrets get changed, then
+					// a new ..data directory gets created. This is done by Kubernetes to make the
+					// update atomic.
+					err = LoadHcloudCredentials(hetznerSecretDirectory, hcloudClient)
+					if robotClient != nil {
+						err = errors.Join(err, LoadRobotCredentials(hetznerSecretDirectory, robotClient))
+					}
+				default:
+					klog.Infof("Ignoring fsnotify event for %q: %s", baseName, event.String())
 				}
+				if err != nil {
+					klog.Errorf("error processing fsnotify event: %s", err.Error())
+					continue
+				}
+
 			case err := <-watcher.Errors:
 				klog.Infof("error: %s", err)
 			}
@@ -51,7 +69,15 @@ func Watch(hetznerSecretDirectory string, robotClient robotclient.Client, hcloud
 }
 
 func isValidEvent(event fsnotify.Event) bool {
-	return event.Op&fsnotify.Write == fsnotify.Write
+	baseName := filepath.Base(event.Name)
+	if strings.HasPrefix(baseName, "..") && baseName != "..data" {
+		// Skip ..data_tmp and ..YYYY_MM_DD...
+		return false
+	}
+	if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
+		return true
+	}
+	return false
 }
 
 var (
@@ -82,7 +108,7 @@ func LoadRobotCredentials(hetznerSecretDirectory string, robotClient robotclient
 	return nil
 }
 
-func ReadRobotCredentialsFromDirectory(hetznerSecretDirectory string) (username string, password string, err error) {
+func ReadRobotCredentialsFromDirectory(hetznerSecretDirectory string) (username, password string, err error) {
 	robotUserNameFile := filepath.Join(hetznerSecretDirectory, "robot-user")
 	robotPasswordFile := filepath.Join(hetznerSecretDirectory, "robot-password")
 	u, err := os.ReadFile(robotUserNameFile)

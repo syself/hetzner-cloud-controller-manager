@@ -55,7 +55,7 @@ func Test_updateRobotCredentials(t *testing.T) {
 	robotClient, err := NewCachedRobotClient(tmp, httpClient, server.URL+"/robot")
 	require.NoError(t, err)
 	require.NotNil(t, robotClient)
-	err = hotreload.Watch(filepath.Join(tmp, "etc", "hetzner-secret"), robotClient, nil)
+	err = hotreload.Watch(filepath.Join(tmp, "etc", "hetzner-secret"), nil, robotClient)
 	require.NoError(t, err)
 	servers, err := robotClient.ServerGetList()
 	require.NoError(t, err)

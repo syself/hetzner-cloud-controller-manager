@@ -419,7 +419,7 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	hcloudClient, err := newHcloudClient(tmp)
 	require.NoError(t, err)
 
-	err = hotreload.Watch(secretsDir, nil, hcloudClient)
+	err = hotreload.Watch(secretsDir, hcloudClient, nil)
 	require.NoError(t, err)
 
 	hcloud.WithEndpoint(server.URL)(hcloudClient)
