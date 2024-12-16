@@ -15,6 +15,17 @@ import (
 	"k8s.io/klog/v2"
 )
 
+var (
+	oldRobotUser       string
+	oldRobotPassword   string
+	RobotReloadCounter uint64
+	robotMutex         sync.Mutex
+
+	oldHcloudToken           string
+	HcloudTokenReloadCounter uint64
+	hcloudMutex              sync.Mutex
+)
+
 // Watch the mounted secrets. Reload the credentials, when the files get updated. The robotClient can be nil.
 func Watch(hetznerSecretDirectory string, hcloudClient *hcloud.Client, robotClient robotclient.Client) error {
 	watcher, err := fsnotify.NewWatcher()
@@ -80,13 +91,6 @@ func isValidEvent(event fsnotify.Event) bool {
 	return false
 }
 
-var (
-	oldRobotUser       string
-	oldRobotPassword   string
-	RobotReloadCounter uint64
-	robotMutex         sync.Mutex
-)
-
 func LoadRobotCredentials(hetznerSecretDirectory string, robotClient robotclient.Client) error {
 	robotMutex.Lock()
 	defer robotMutex.Unlock()
@@ -121,12 +125,6 @@ func ReadRobotCredentialsFromDirectory(hetznerSecretDirectory string) (username,
 	}
 	return strings.TrimSpace(string(u)), strings.TrimSpace(string(p)), nil
 }
-
-var (
-	oldHcloudToken           string
-	HcloudTokenReloadCounter uint64
-	hcloudMutex              sync.Mutex
-)
 
 func LoadHcloudCredentials(hetznerSecretDirectory string, hcloudClient *hcloud.Client) error {
 	hcloudMutex.Lock()
