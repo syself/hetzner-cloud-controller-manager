@@ -74,6 +74,8 @@ See [CAPH docs](https://syself.com/docs/caph/topics/baremetal/creating-workload-
 
 End of "About the fork"
 
+Docs below that line are likely out of date.
+
 ---
 
 ## Features
