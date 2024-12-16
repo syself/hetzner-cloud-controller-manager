@@ -111,10 +111,6 @@ spec:
               cpu: 100m
               memory: 50Mi
           env:
-            - name: NODE_NAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: spec.nodeName
             - name: HCLOUD_TOKEN
               valueFrom:
                 secretKeyRef:
