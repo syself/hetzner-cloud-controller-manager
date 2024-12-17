@@ -51,7 +51,7 @@ func GetHcloudReloadCounter() uint64 {
 }
 
 // Watch the mounted secrets. Reload the credentials, when the files get updated. The robotClient can be nil.
-func Watch(hetznerSecretDirectory string, hcloudClient *hcloud.Client, robotClient robotclient.Client) error {
+func Watch(credentialsDir string, hcloudClient *hcloud.Client, robotClient robotclient.Client) error {
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		klog.Fatal(err)
@@ -68,19 +68,19 @@ func Watch(hetznerSecretDirectory string, hcloudClient *hcloud.Client, robotClie
 				var err error
 				switch baseName {
 				case "robot-user":
-					err = loadRobotCredentials(hetznerSecretDirectory, robotClient)
+					err = loadRobotCredentials(credentialsDir, robotClient)
 				case "robot-password":
-					err = loadRobotCredentials(hetznerSecretDirectory, robotClient)
+					err = loadRobotCredentials(credentialsDir, robotClient)
 				case "hcloud":
-					err = loadHcloudCredentials(hetznerSecretDirectory, hcloudClient)
+					err = loadHcloudCredentials(credentialsDir, hcloudClient)
 				case "..data":
 					// The files (for example hcloud) are symlinks to ..data/. For example to ../data/hcloud
 					// This means the files/symlinks don't change. When the secrets get changed, then
 					// a new ..data directory gets created. This is done by Kubernetes to make the
 					// update atomic.
-					err = loadHcloudCredentials(hetznerSecretDirectory, hcloudClient)
+					err = loadHcloudCredentials(credentialsDir, hcloudClient)
 					if robotClient != nil {
-						err = errors.Join(err, loadRobotCredentials(hetznerSecretDirectory, robotClient))
+						err = errors.Join(err, loadRobotCredentials(credentialsDir, robotClient))
 					}
 				default:
 					klog.Infof("Ignoring fsnotify event for %q: %s", baseName, event.String())
@@ -96,7 +96,7 @@ func Watch(hetznerSecretDirectory string, hcloudClient *hcloud.Client, robotClie
 		}
 	}()
 
-	err = watcher.Add(hetznerSecretDirectory)
+	err = watcher.Add(credentialsDir)
 	if err != nil {
 		return fmt.Errorf("watcher.Add: %w", err)
 	}
@@ -115,10 +115,10 @@ func isValidEvent(event fsnotify.Event) bool {
 	return false
 }
 
-func loadRobotCredentials(hetznerSecretDirectory string, robotClient robotclient.Client) error {
+func loadRobotCredentials(credentialsDir string, robotClient robotclient.Client) error {
 	robotMutex.Lock()
 	defer robotMutex.Unlock()
-	username, password, err := readRobotCredentials(hetznerSecretDirectory)
+	username, password, err := readRobotCredentials(credentialsDir)
 	if err != nil {
 		return fmt.Errorf("reading robot credentials from secret: %w", err)
 	}
@@ -136,8 +136,8 @@ func loadRobotCredentials(hetznerSecretDirectory string, robotClient robotclient
 	return nil
 }
 
-func GetInitialRobotCredentials(hetznerSecretDirectory string) (username, password string, err error) {
-	u, p, err := readRobotCredentials(hetznerSecretDirectory)
+func GetInitialRobotCredentials(credentialsDir string) (username, password string, err error) {
+	u, p, err := readRobotCredentials(credentialsDir)
 	if err != nil {
 		return "", "", fmt.Errorf("readRobotCredentials: %w", err)
 	}
@@ -146,9 +146,9 @@ func GetInitialRobotCredentials(hetznerSecretDirectory string) (username, passwo
 	return u, p, nil
 }
 
-func readRobotCredentials(hetznerSecretDirectory string) (username, password string, err error) {
-	robotUserNameFile := filepath.Join(hetznerSecretDirectory, "robot-user")
-	robotPasswordFile := filepath.Join(hetznerSecretDirectory, "robot-password")
+func readRobotCredentials(credentialsDir string) (username, password string, err error) {
+	robotUserNameFile := filepath.Join(credentialsDir, "robot-user")
+	robotPasswordFile := filepath.Join(credentialsDir, "robot-password")
 	u, err := os.ReadFile(robotUserNameFile)
 	if err != nil {
 		return "", "", fmt.Errorf("reading robot user name from %q: %w", robotUserNameFile, err)
@@ -160,11 +160,11 @@ func readRobotCredentials(hetznerSecretDirectory string) (username, password str
 	return strings.TrimSpace(string(u)), strings.TrimSpace(string(p)), nil
 }
 
-func loadHcloudCredentials(hetznerSecretDirectory string, hcloudClient *hcloud.Client) error {
+func loadHcloudCredentials(credentialsDir string, hcloudClient *hcloud.Client) error {
 	hcloudMutex.Lock()
 	defer hcloudMutex.Unlock()
 	op := "hcloud/updateHcloudToken"
-	token, err := readHcloudCredentials(hetznerSecretDirectory)
+	token, err := readHcloudCredentials(credentialsDir)
 	if err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
@@ -181,8 +181,8 @@ func loadHcloudCredentials(hetznerSecretDirectory string, hcloudClient *hcloud.C
 	return nil
 }
 
-func GetInitialHcloudCredentialsFromDirectory(hetznerSecretDirectory string) (string, error) {
-	token, err := readHcloudCredentials(hetznerSecretDirectory)
+func GetInitialHcloudCredentialsFromDirectory(credentialsDir string) (string, error) {
+	token, err := readHcloudCredentials(credentialsDir)
 	if err != nil {
 		return "", fmt.Errorf("readHcloudCredentials: %w", err)
 	}
@@ -190,11 +190,15 @@ func GetInitialHcloudCredentialsFromDirectory(hetznerSecretDirectory string) (st
 	return token, nil
 }
 
-func readHcloudCredentials(hetznerSecretDirectory string) (string, error) {
-	hcloudTokenFile := filepath.Join(hetznerSecretDirectory, "hcloud")
+func readHcloudCredentials(credentialsDir string) (string, error) {
+	hcloudTokenFile := filepath.Join(credentialsDir, "hcloud")
 	data, err := os.ReadFile(hcloudTokenFile)
 	if err != nil {
 		return "", fmt.Errorf("reading hcloud token from %q: %w", hcloudTokenFile, err)
 	}
 	return strings.TrimSpace(string(data)), nil
+}
+
+func CredentialsDirectory(rootDir string) string {
+	return filepath.Join(rootDir, "etc", "hetzner-secret")
 }

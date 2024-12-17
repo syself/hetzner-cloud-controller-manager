@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hotreload"
@@ -60,11 +59,11 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 		cacheTimeout = 5 * time.Minute
 	}
 
-	secretsDir := filepath.Join(rootDir, "etc", "hetzner-secret")
-	_, err = os.Stat(secretsDir)
+	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	_, err = os.Stat(credentialsDir)
 	var robotUser, robotPassword string
 	if err != nil {
-		klog.V(1).Infof("reading Hetzner Robot credentials from file failed. %q does not exist", secretsDir)
+		klog.V(1).Infof("reading Hetzner Robot credentials from file failed. %q does not exist", credentialsDir)
 		robotUser = os.Getenv(robotUserNameENVVar)
 		robotPassword = os.Getenv(robotPasswordENVVar)
 		if robotUser == "" || robotPassword == "" {
@@ -74,7 +73,7 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 			return nil, nil
 		}
 	} else {
-		robotUser, robotPassword, err = hotreload.GetInitialRobotCredentials(secretsDir)
+		robotUser, robotPassword, err = hotreload.GetInitialRobotCredentials(credentialsDir)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}

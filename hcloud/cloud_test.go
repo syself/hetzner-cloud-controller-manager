@@ -405,21 +405,20 @@ func Test_updateHcloudCredentials(t *testing.T) {
 
 	os.Unsetenv("HCLOUD_TOKEN")
 
-	tmp, err := os.MkdirTemp("", "Test_newHcloudClient-*")
+	rootDir, err := os.MkdirTemp("", "Test_newHcloudClient-*")
 	require.NoError(t, err)
 
-	secretsDir := filepath.Join(tmp, "etc", "hetzner-secret")
-	require.NoError(t, err)
-	err = os.MkdirAll(filepath.Join(tmp, "etc", "hetzner-secret"), 0o755)
+	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	err = os.MkdirAll(credentialsDir, 0o755)
 	require.NoError(t, err)
 
 	token := "jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"
-	err = writeCredentials(secretsDir, token)
+	err = writeCredentials(credentialsDir, token)
 	require.NoError(t, err)
-	hcloudClient, err := newHcloudClient(tmp)
+	hcloudClient, err := newHcloudClient(rootDir)
 	require.NoError(t, err)
 
-	err = hotreload.Watch(secretsDir, hcloudClient, nil)
+	err = hotreload.Watch(credentialsDir, hcloudClient, nil)
 	require.NoError(t, err)
 
 	hcloud.WithEndpoint(server.URL)(hcloudClient)
@@ -443,7 +442,7 @@ func Test_updateHcloudCredentials(t *testing.T) {
 
 	oldCounter := hotreload.GetHcloudReloadCounter()
 	token2 := "22222ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"
-	err = writeCredentials(secretsDir, token2)
+	err = writeCredentials(credentialsDir, token2)
 	require.NoError(t, err)
 	start := time.Now()
 	for {
@@ -472,7 +471,7 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func writeCredentials(secretsDir, token string) error {
-	return os.WriteFile(filepath.Join(secretsDir, "hcloud"),
+func writeCredentials(credentialsDir, token string) error {
+	return os.WriteFile(filepath.Join(credentialsDir, "hcloud"),
 		[]byte(token), 0o600)
 }

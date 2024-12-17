@@ -24,19 +24,20 @@ func Test_updateRobotCredentials(t *testing.T) {
 	os.Unsetenv(robotUserNameENVVar)
 	os.Unsetenv(robotPasswordENVVar)
 
-	tmp, err := os.MkdirTemp("", "Test_newHcloudClient-*")
+	rootDir, err := os.MkdirTemp("", "Test_newHcloudClient-*")
 	require.NoError(t, err)
 
-	err = os.MkdirAll(filepath.Join(tmp, "etc", "hetzner-secret"), 0o755)
+	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	err = os.MkdirAll(credentialsDir, 0o755)
 	require.NoError(t, err)
 
-	err = os.Symlink("..data/robot-user", filepath.Join(tmp, "etc", "hetzner-secret", "robot-user"))
+	err = os.Symlink("..data/robot-user", filepath.Join(credentialsDir, "robot-user"))
 	require.NoError(t, err)
 
-	err = os.Symlink("..data/robot-password", filepath.Join(tmp, "etc", "hetzner-secret", "robot-password"))
+	err = os.Symlink("..data/robot-password", filepath.Join(credentialsDir, "robot-password"))
 	require.NoError(t, err)
 
-	err = writeCredentials(tmp, "my-robot-user", "my-robot-password")
+	err = writeCredentials(rootDir, "my-robot-user", "my-robot-password")
 	require.NoError(t, err)
 
 	wantAuth := base64.StdEncoding.EncodeToString([]byte("my-robot-user:my-robot-password"))
@@ -58,17 +59,17 @@ func Test_updateRobotCredentials(t *testing.T) {
 	})
 
 	httpClient := server.Client()
-	robotClient, err := NewCachedRobotClient(tmp, httpClient, server.URL+"/robot")
+	robotClient, err := NewCachedRobotClient(rootDir, httpClient, server.URL+"/robot")
 	require.NoError(t, err)
 	require.NotNil(t, robotClient)
-	err = hotreload.Watch(filepath.Join(tmp, "etc", "hetzner-secret"), nil, robotClient)
+	err = hotreload.Watch(hotreload.CredentialsDirectory(rootDir), nil, robotClient)
 	require.NoError(t, err)
 	servers, err := robotClient.ServerGetList()
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
 
 	oldCount := hotreload.GetRobotReloadCounter()
-	err = writeCredentials(tmp, "user2", "password2")
+	err = writeCredentials(rootDir, "user2", "password2")
 	require.NoError(t, err)
 	start := time.Now()
 	for {
@@ -88,8 +89,9 @@ func Test_updateRobotCredentials(t *testing.T) {
 	require.Len(t, servers, 1)
 }
 
-func writeCredentials(tmpDir, user, password string) error {
-	newDir := filepath.Join(tmpDir, "etc", "hetzner-secret", "..dataNew")
+func writeCredentials(rootDir, user, password string) error {
+	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	newDir := filepath.Join(credentialsDir, "..dataNew")
 	if err := os.MkdirAll(newDir, 0o700); err != nil {
 		return err
 	}
@@ -104,7 +106,7 @@ func writeCredentials(tmpDir, user, password string) error {
 	if err != nil {
 		return err
 	}
-	targetDir := filepath.Join(tmpDir, "etc", "hetzner-secret", "..data")
+	targetDir := filepath.Join(credentialsDir, "..data")
 	if err := os.RemoveAll(targetDir); err != nil {
 		return err
 	}

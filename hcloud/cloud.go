@@ -23,7 +23,6 @@ import (
 	"io"
 	"net/http"
 	"os"
-	"path/filepath"
 	"regexp"
 	"runtime/debug"
 	"strconv"
@@ -104,16 +103,16 @@ func (lt *LoggingTransport) RoundTrip(req *http.Request) (resp *http.Response, e
 }
 
 func newHcloudClient(rootDir string) (*hcloud.Client, error) {
-	secretDir := filepath.Join(rootDir, "etc", "hetzner-secret")
-	token, err := hotreload.GetInitialHcloudCredentialsFromDirectory(secretDir)
+	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	token, err := hotreload.GetInitialHcloudCredentialsFromDirectory(credentialsDir)
 	if err != nil {
 		klog.V(1).Infof("reading Hetzner Cloud token from directory failed. Will try env var: %s", err.Error())
 		token = os.Getenv(hcloudTokenENVVar)
 		if token == "" {
-			return nil, fmt.Errorf("Either token from directory %q or environment variable %q is required", secretDir, hcloudTokenENVVar)
+			return nil, fmt.Errorf("Either token from directory %q or environment variable %q is required", credentialsDir, hcloudTokenENVVar)
 		}
 	} else {
-		klog.V(1).Infof("reading Hetzner Cloud token from %q. The controller will reload the credentials, when the file changes", secretDir)
+		klog.V(1).Infof("reading Hetzner Cloud token from %q. The controller will reload the credentials, when the file changes", credentialsDir)
 	}
 	if len(token) != 64 {
 		return nil, fmt.Errorf("entered token is invalid (must be exactly 64 characters long)")
@@ -238,11 +237,11 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	secretsDir := filepath.Join(rootDir, "etc", "hetzner-secret")
-	_, err = os.Stat(secretsDir)
+	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	_, err = os.Stat(credentialsDir)
 	if err == nil {
 		// Watch for changes in the secrets directory
-		err := hotreload.Watch(secretsDir, hcloudClient, robotClient)
+		err := hotreload.Watch(credentialsDir, hcloudClient, robotClient)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
