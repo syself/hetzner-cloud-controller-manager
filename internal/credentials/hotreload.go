@@ -1,4 +1,4 @@
-package hotreload
+package credentials
 
 import (
 	"errors"
@@ -64,7 +64,10 @@ func Watch(credentialsDir string, hcloudClient *hcloud.Client, robotClient robot
 				if !isValidEvent(event) {
 					continue
 				}
+
+				// get last element of path. Example: /etc/hetzner-secret/robot-user -> robot-user
 				baseName := filepath.Base(event.Name)
+
 				var err error
 				switch baseName {
 				case "robot-user":
@@ -74,16 +77,17 @@ func Watch(credentialsDir string, hcloudClient *hcloud.Client, robotClient robot
 				case "hcloud":
 					err = loadHcloudCredentials(credentialsDir, hcloudClient)
 				case "..data":
-					// The files (for example hcloud) are symlinks to ..data/. For example to ../data/hcloud
+					// The files (for example hcloud) are symlinks to ..data/.
+					// For example the file "hcloud" is a symlink to ../data/hcloud
 					// This means the files/symlinks don't change. When the secrets get changed, then
 					// a new ..data directory gets created. This is done by Kubernetes to make the
-					// update atomic.
+					// update of all files atomic.
 					err = loadHcloudCredentials(credentialsDir, hcloudClient)
 					if robotClient != nil {
 						err = errors.Join(err, loadRobotCredentials(credentialsDir, robotClient))
 					}
 				default:
-					klog.Infof("Ignoring fsnotify event for %q: %s", baseName, event.String())
+					klog.Infof("Ignoring fsnotify event for file %q: %s", baseName, event.String())
 				}
 				if err != nil {
 					klog.Errorf("error processing fsnotify event: %s", err.Error())

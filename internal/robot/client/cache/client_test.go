@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/hotreload"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/credentials"
 	"github.com/syself/hrobot-go/models"
 )
 
@@ -27,7 +27,7 @@ func Test_updateRobotCredentials(t *testing.T) {
 	rootDir, err := os.MkdirTemp("", "Test_newHcloudClient-*")
 	require.NoError(t, err)
 
-	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.CredentialsDirectory(rootDir)
 	err = os.MkdirAll(credentialsDir, 0o755)
 	require.NoError(t, err)
 
@@ -62,19 +62,19 @@ func Test_updateRobotCredentials(t *testing.T) {
 	robotClient, err := NewCachedRobotClient(rootDir, httpClient, server.URL+"/robot")
 	require.NoError(t, err)
 	require.NotNil(t, robotClient)
-	err = hotreload.Watch(hotreload.CredentialsDirectory(rootDir), nil, robotClient)
+	err = credentials.Watch(credentials.CredentialsDirectory(rootDir), nil, robotClient)
 	require.NoError(t, err)
 	servers, err := robotClient.ServerGetList()
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
 
-	oldCount := hotreload.GetRobotReloadCounter()
+	oldCount := credentials.GetRobotReloadCounter()
 	err = writeCredentials(rootDir, "user2", "password2")
 	require.NoError(t, err)
 	start := time.Now()
 	for {
-		// if hotreload.robotReloadCounter > oldCount {
-		if hotreload.GetRobotReloadCounter() > oldCount {
+		// if credentials.robotReloadCounter > oldCount {
+		if credentials.GetRobotReloadCounter() > oldCount {
 			break
 		}
 		if time.Since(start) > time.Second*3 {
@@ -90,7 +90,7 @@ func Test_updateRobotCredentials(t *testing.T) {
 }
 
 func writeCredentials(rootDir, user, password string) error {
-	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.CredentialsDirectory(rootDir)
 	newDir := filepath.Join(credentialsDir, "..dataNew")
 	if err := os.MkdirAll(newDir, 0o700); err != nil {
 		return err

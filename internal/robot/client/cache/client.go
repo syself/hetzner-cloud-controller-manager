@@ -6,7 +6,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/syself/hetzner-cloud-controller-manager/internal/hotreload"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/credentials"
 	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/util"
 	hrobot "github.com/syself/hrobot-go"
@@ -59,7 +59,7 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 		cacheTimeout = 5 * time.Minute
 	}
 
-	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.CredentialsDirectory(rootDir)
 	_, err = os.Stat(credentialsDir)
 	var robotUser, robotPassword string
 	if err != nil {
@@ -73,7 +73,7 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 			return nil, nil
 		}
 	} else {
-		robotUser, robotPassword, err = hotreload.GetInitialRobotCredentials(credentialsDir)
+		robotUser, robotPassword, err = credentials.GetInitialRobotCredentials(credentialsDir)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}

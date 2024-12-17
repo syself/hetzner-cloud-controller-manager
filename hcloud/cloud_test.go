@@ -31,8 +31,8 @@ import (
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/schema"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/credentials"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/hotreload"
 	hrobot "github.com/syself/hrobot-go"
 	corev1 "k8s.io/api/core/v1"
 )
@@ -408,7 +408,7 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	rootDir, err := os.MkdirTemp("", "Test_newHcloudClient-*")
 	require.NoError(t, err)
 
-	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.CredentialsDirectory(rootDir)
 	err = os.MkdirAll(credentialsDir, 0o755)
 	require.NoError(t, err)
 
@@ -418,7 +418,7 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	hcloudClient, err := newHcloudClient(rootDir)
 	require.NoError(t, err)
 
-	err = hotreload.Watch(credentialsDir, hcloudClient, nil)
+	err = credentials.Watch(credentialsDir, hcloudClient, nil)
 	require.NoError(t, err)
 
 	hcloud.WithEndpoint(server.URL)(hcloudClient)
@@ -440,13 +440,13 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	_, err = i.InstanceExists(context.TODO(), node)
 	require.NoError(t, err)
 
-	oldCounter := hotreload.GetHcloudReloadCounter()
+	oldCounter := credentials.GetHcloudReloadCounter()
 	token2 := "22222ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"
 	err = writeCredentials(credentialsDir, token2)
 	require.NoError(t, err)
 	start := time.Now()
 	for {
-		if hotreload.GetHcloudReloadCounter() > oldCounter {
+		if credentials.GetHcloudReloadCounter() > oldCounter {
 			break
 		}
 		if time.Since(start) > time.Second*3 {

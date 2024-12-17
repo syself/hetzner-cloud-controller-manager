@@ -30,8 +30,8 @@ import (
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/metadata"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/credentials"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
-	"github.com/syself/hetzner-cloud-controller-manager/internal/hotreload"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/robot/client/cache"
@@ -103,8 +103,8 @@ func (lt *LoggingTransport) RoundTrip(req *http.Request) (resp *http.Response, e
 }
 
 func newHcloudClient(rootDir string) (*hcloud.Client, error) {
-	credentialsDir := hotreload.CredentialsDirectory(rootDir)
-	token, err := hotreload.GetInitialHcloudCredentialsFromDirectory(credentialsDir)
+	credentialsDir := credentials.CredentialsDirectory(rootDir)
+	token, err := credentials.GetInitialHcloudCredentialsFromDirectory(credentialsDir)
 	if err != nil {
 		klog.V(1).Infof("reading Hetzner Cloud token from directory failed. Will try env var: %s", err.Error())
 		token = os.Getenv(hcloudTokenENVVar)
@@ -237,11 +237,11 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	credentialsDir := hotreload.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.CredentialsDirectory(rootDir)
 	_, err = os.Stat(credentialsDir)
 	if err == nil {
 		// Watch for changes in the secrets directory
-		err := hotreload.Watch(credentialsDir, hcloudClient, robotClient)
+		err := credentials.Watch(credentialsDir, hcloudClient, robotClient)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
