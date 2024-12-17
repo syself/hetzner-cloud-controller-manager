@@ -21,9 +21,7 @@ const (
 	cacheTimeoutENVVar  = "CACHE_TIMEOUT"
 )
 
-var handler = &cacheRobotClient{}
-
-var _ robotclient.Client = handler
+var _ robotclient.Client = &cacheRobotClient{}
 
 type cacheRobotClient struct {
 	robotClient hrobot.RobotClient
@@ -34,12 +32,6 @@ type cacheRobotClient struct {
 	// cache
 	l []models.Server
 	m map[int]*models.Server
-}
-
-func NewClient(robotClient hrobot.RobotClient, cacheTimeout time.Duration) robotclient.Client {
-	handler.timeout = cacheTimeout
-	handler.robotClient = robotClient
-	return handler
 }
 
 // NewCachedRobotClient creates a new robot client with caching enabled.
@@ -82,8 +74,11 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 	if baseURL != "" {
 		c.SetBaseURL(baseURL)
 	}
-	robotClient := NewClient(c, cacheTimeout)
-	return robotClient, nil
+
+	handler := &cacheRobotClient{}
+	handler.timeout = cacheTimeout
+	handler.robotClient = c
+	return handler, nil
 }
 
 func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
