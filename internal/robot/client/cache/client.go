@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	robotDebugENVVar    = "ROBOT_DEBUG"
 	robotUserNameENVVar = "ROBOT_USER_NAME"
 	robotPasswordENVVar = "ROBOT_PASSWORD"
 	cacheTimeoutENVVar  = "CACHE_TIMEOUT"
