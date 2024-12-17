@@ -125,7 +125,7 @@ func loadRobotCredentials(credentialsDir string, robotClient robotclient.Client)
 
 	username, password, err := readRobotCredentials(credentialsDir)
 	if err != nil {
-		return fmt.Errorf("reading robot credentials from secret: %w", err)
+		return fmt.Errorf("reading robot credentials from secret failed: %w", err)
 	}
 
 	if username == oldRobotUser && password == oldRobotPassword {
@@ -165,12 +165,12 @@ func readRobotCredentials(credentialsDir string) (username, password string, err
 
 	u, err := os.ReadFile(robotUserNameFile)
 	if err != nil {
-		return "", "", fmt.Errorf("reading robot user name from %q: %w", robotUserNameFile, err)
+		return "", "", fmt.Errorf("reading robot user name from %q failed: %w", robotUserNameFile, err)
 	}
 
 	p, err := os.ReadFile(robotPasswordFile)
 	if err != nil {
-		return "", "", fmt.Errorf("reading robot password from %q: %w", robotPasswordFile, err)
+		return "", "", fmt.Errorf("reading robot password from %q failed: %w", robotPasswordFile, err)
 	}
 
 	return strings.TrimSpace(string(u)), strings.TrimSpace(string(p)), nil
@@ -221,7 +221,7 @@ func readHcloudCredentials(credentialsDir string) (string, error) {
 	hcloudTokenFile := filepath.Join(credentialsDir, "hcloud")
 	data, err := os.ReadFile(hcloudTokenFile)
 	if err != nil {
-		return "", fmt.Errorf("reading hcloud token from %q: %w", hcloudTokenFile, err)
+		return "", fmt.Errorf("reading hcloud token from %q failed: %w", hcloudTokenFile, err)
 	}
 	return strings.TrimSpace(string(data)), nil
 }
