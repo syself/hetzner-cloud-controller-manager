@@ -27,7 +27,7 @@ func Test_updateRobotCredentials(t *testing.T) {
 	rootDir, err := os.MkdirTemp("", "Test_newHcloudClient-*")
 	require.NoError(t, err)
 
-	credentialsDir := credentials.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.GetDirectory(rootDir)
 	err = os.MkdirAll(credentialsDir, 0o755)
 	require.NoError(t, err)
 
@@ -62,7 +62,7 @@ func Test_updateRobotCredentials(t *testing.T) {
 	robotClient, err := NewCachedRobotClient(rootDir, httpClient, server.URL+"/robot")
 	require.NoError(t, err)
 	require.NotNil(t, robotClient)
-	err = credentials.Watch(credentials.CredentialsDirectory(rootDir), nil, robotClient)
+	err = credentials.Watch(credentials.GetDirectory(rootDir), nil, robotClient)
 	require.NoError(t, err)
 	servers, err := robotClient.ServerGetList()
 	require.NoError(t, err)
@@ -90,7 +90,7 @@ func Test_updateRobotCredentials(t *testing.T) {
 }
 
 func writeCredentials(rootDir, user, password string) error {
-	credentialsDir := credentials.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.GetDirectory(rootDir)
 	newDir := filepath.Join(credentialsDir, "..dataNew")
 	if err := os.MkdirAll(newDir, 0o700); err != nil {
 		return err

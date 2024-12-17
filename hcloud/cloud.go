@@ -103,7 +103,7 @@ func (lt *LoggingTransport) RoundTrip(req *http.Request) (resp *http.Response, e
 }
 
 func newHcloudClient(rootDir string) (*hcloud.Client, error) {
-	credentialsDir := credentials.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.GetDirectory(rootDir)
 	token, err := credentials.GetInitialHcloudCredentialsFromDirectory(credentialsDir)
 	if err != nil {
 		klog.V(1).Infof("reading Hetzner Cloud token from directory failed. Will try env var: %s", err.Error())
@@ -237,7 +237,7 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	credentialsDir := credentials.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.GetDirectory(rootDir)
 	_, err = os.Stat(credentialsDir)
 	if err == nil {
 		// Watch for changes in the secrets directory

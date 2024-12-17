@@ -122,20 +122,26 @@ func isValidEvent(event fsnotify.Event) bool {
 func loadRobotCredentials(credentialsDir string, robotClient robotclient.Client) error {
 	robotMutex.Lock()
 	defer robotMutex.Unlock()
+
 	username, password, err := readRobotCredentials(credentialsDir)
 	if err != nil {
 		return fmt.Errorf("reading robot credentials from secret: %w", err)
 	}
+
 	if username == oldRobotUser && password == oldRobotPassword {
 		return nil
 	}
+
+	// Update global variables
 	oldRobotUser = username
 	oldRobotPassword = password
 	robotReloadCounter++
+
 	err = robotClient.SetCredentials(username, password)
 	if err != nil {
 		return fmt.Errorf("SetCredentials: %w", err)
 	}
+
 	klog.Infof("Hetzner Robot credentials updated to new value: %q %s...", username, password[:3])
 	return nil
 }
@@ -145,42 +151,56 @@ func GetInitialRobotCredentials(credentialsDir string) (username, password strin
 	if err != nil {
 		return "", "", fmt.Errorf("readRobotCredentials: %w", err)
 	}
+
+	// Update global variables
 	oldRobotUser = u
 	oldRobotPassword = p
+
 	return u, p, nil
 }
 
 func readRobotCredentials(credentialsDir string) (username, password string, err error) {
 	robotUserNameFile := filepath.Join(credentialsDir, "robot-user")
 	robotPasswordFile := filepath.Join(credentialsDir, "robot-password")
+
 	u, err := os.ReadFile(robotUserNameFile)
 	if err != nil {
 		return "", "", fmt.Errorf("reading robot user name from %q: %w", robotUserNameFile, err)
 	}
+
 	p, err := os.ReadFile(robotPasswordFile)
 	if err != nil {
 		return "", "", fmt.Errorf("reading robot password from %q: %w", robotPasswordFile, err)
 	}
+
 	return strings.TrimSpace(string(u)), strings.TrimSpace(string(p)), nil
 }
 
 func loadHcloudCredentials(credentialsDir string, hcloudClient *hcloud.Client) error {
 	hcloudMutex.Lock()
 	defer hcloudMutex.Unlock()
-	op := "hcloud/updateHcloudToken"
+
 	token, err := readHcloudCredentials(credentialsDir)
 	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
+		return err
 	}
+
 	if len(token) != 64 {
-		return fmt.Errorf("%s: entered token is invalid (must be exactly 64 characters long)", op)
+		return fmt.Errorf("loadHcloudCredentials: entered token (%s...) is invalid (must be exactly 64 characters long)",
+			token[:5])
 	}
+
 	if token == oldHcloudToken {
 		return nil
 	}
+
+	// Update global variables
 	oldHcloudToken = token
 	hcloudTokenReloadCounter++
+
+	// Update credentials of hcloudClient
 	hcloud.WithToken(token)(hcloudClient)
+
 	klog.Infof("Hetzner Cloud token updated to new value: %s...", token[:5])
 	return nil
 }
@@ -190,7 +210,10 @@ func GetInitialHcloudCredentialsFromDirectory(credentialsDir string) (string, er
 	if err != nil {
 		return "", fmt.Errorf("readHcloudCredentials: %w", err)
 	}
+
+	// Update global variable
 	oldHcloudToken = token
+
 	return token, nil
 }
 
@@ -203,6 +226,8 @@ func readHcloudCredentials(credentialsDir string) (string, error) {
 	return strings.TrimSpace(string(data)), nil
 }
 
-func CredentialsDirectory(rootDir string) string {
+// GetDirectory returns the directory where the credentials are stored.
+// The credentials are stored in the directory etc/hetzner-secret.
+func GetDirectory(rootDir string) string {
 	return filepath.Join(rootDir, "etc", "hetzner-secret")
 }

@@ -59,7 +59,7 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 		cacheTimeout = 5 * time.Minute
 	}
 
-	credentialsDir := credentials.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.GetDirectory(rootDir)
 	_, err = os.Stat(credentialsDir)
 	var robotUser, robotPassword string
 	if err != nil {

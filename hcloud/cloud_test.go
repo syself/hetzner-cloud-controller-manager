@@ -408,7 +408,7 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	rootDir, err := os.MkdirTemp("", "Test_newHcloudClient-*")
 	require.NoError(t, err)
 
-	credentialsDir := credentials.CredentialsDirectory(rootDir)
+	credentialsDir := credentials.GetDirectory(rootDir)
 	err = os.MkdirAll(credentialsDir, 0o755)
 	require.NoError(t, err)
 
