@@ -47,6 +47,8 @@ func NewClient(robotClient hrobot.RobotClient, cacheTimeout time.Duration) robot
 // rootDir: root directory for reading credentials from file.
 // httpClient: http client to use for the robot client.
 // baseURL: base URL for the robot client. Optional, leave empty for default.
+// Returns nil and no error if the robot client could not be created, because
+// the credentials are optional.
 func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL string) (robotclient.Client, error) {
 	const op = "hcloud/newRobotClient"
 	cacheTimeout, err := util.GetEnvDuration(cacheTimeoutENVVar)

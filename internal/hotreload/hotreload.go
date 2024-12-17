@@ -34,12 +34,16 @@ var (
 	robotMutex  sync.Mutex
 )
 
+// GetRobotReloadCounter returns the number of times the robot credentials have been reloaded.
+// Mostly used for testing.
 func GetRobotReloadCounter() uint64 {
 	robotMutex.Lock()
 	defer robotMutex.Unlock()
 	return robotReloadCounter
 }
 
+// GetHcloudReloadCounter returns the number of times the hcloud credentials have been reloaded.
+// Mostly used for testing.
 func GetHcloudReloadCounter() uint64 {
 	hcloudMutex.Lock()
 	defer hcloudMutex.Unlock()

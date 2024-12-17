@@ -167,6 +167,10 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
+	if robotClient == nil {
+		klog.Info("Robot client is nil, will not be able to manage bare metal servers.")
+	}
+
 	var networkID int64
 	if v, ok := os.LookupEnv(hcloudNetworkENVVar); ok {
 		n, _, err := hcloudClient.Network.Get(context.Background(), v)
@@ -229,7 +233,6 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 	if os.Getenv(hcloudLoadBalancersEnabledENVVar) == "false" {
 		loadBalancers = nil
 	}
-
 	instancesAddressFamily, err := addressFamilyFromEnv()
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
