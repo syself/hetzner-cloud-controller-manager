@@ -72,7 +72,7 @@ func Watch(credentialsDir string, hcloudClient *hcloud.Client, robotClient robot
 				}
 
 			case err := <-watcher.Errors:
-				klog.Infof("error: %s", err)
+				klog.Infof("error from fsnotify file watcher of %q: %s", credentialsDir, err)
 			}
 		}
 	}()
@@ -87,16 +87,16 @@ func Watch(credentialsDir string, hcloudClient *hcloud.Client, robotClient robot
 func handleEvent(credentialsDir, baseName string, hcloudClient *hcloud.Client, robotClient robotclient.Client, event fsnotify.Event) error {
 	var err error
 	switch baseName {
-	case "robot-user":
-		return loadRobotCredentials(credentialsDir, robotClient)
-
-	case "robot-password":
+	case "robot-user", "robot-password":
+		// This case is executed, when the process is running on a local machine.
 		return loadRobotCredentials(credentialsDir, robotClient)
 
 	case "hcloud":
+		// This case is executed, when the process is running on a local machine.
 		return loadHcloudCredentials(credentialsDir, hcloudClient)
 
 	case "..data":
+		// This case is executed, when the secrets are mounted in a Kubernetes pod.
 		// The files (for example hcloud) are symlinks to ..data/.
 		// For example the file "hcloud" is a symlink to ../data/hcloud
 		// This means the files/symlinks don't change. When the secrets get changed, then
