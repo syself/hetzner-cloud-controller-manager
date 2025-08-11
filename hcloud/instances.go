@@ -26,6 +26,7 @@ import (
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/klog/v2"
 )
 
 type addressFamily int
@@ -129,10 +130,13 @@ func (i *instances) InstanceShutdown(ctx context.Context, node *corev1.Node) (bo
 	return false, nil
 }
 
-func (i *instances) InstanceMetadata(ctx context.Context, node *corev1.Node) (*cloudprovider.InstanceMetadata, error) {
+func (i *instances) InstanceMetadata(ctx context.Context, node *corev1.Node) (metadata *cloudprovider.InstanceMetadata, reterr error) {
 	const op = "hcloud/instancesv2.InstanceMetadata"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
-
+	defer func() {
+		klog.InfoS("InstanceMetadata", "node", node,
+			"InstanceMetadata", metadata, "err", reterr)
+	}()
 	hcloudServer, bmServer, isHCloudServer, err := i.lookupServer(ctx, node)
 	if err != nil {
 		return nil, err

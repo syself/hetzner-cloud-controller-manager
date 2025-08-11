@@ -4,6 +4,8 @@ on: # yamllint disable-line rule:truthy
   push:
     branches:
       - main
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
 env:
   IMAGE_NAME: hetzner-cloud-controller-manager-staging
   REGISTRY: ghcr.io/syself
