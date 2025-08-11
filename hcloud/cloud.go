@@ -36,10 +36,10 @@ import (
 	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/robot/client/cache"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/tools/record"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
-	"k8s.io/kubectl/pkg/scheme"
 )
 
 const (
