@@ -132,16 +132,16 @@ jobs:
     steps:
       - name: Set env
         run: echo "RELEASE_TAG=${GITHUB_REF:10}" >> $GITHUB_ENV
+
       - name: checkout code
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           fetch-depth: 0
-      - name: Install go
-        uses: actions/setup-go@0a12ed9d6a96ab950c8f026ed9f722fe0da7ef32 # v5.0.2
+
+      - uses: actions/setup-go@v5
         with:
-          go-version-file: "go.mod"
-          cache: true
-          cache-dependency-path: go.sum
+          go-version-file: go.mod
+
       - name: Release
         uses: softprops/action-gh-release@e7a8f85e1c67a31e6ed99a94b41bd0b71bbee6b8 # v2
         with:
