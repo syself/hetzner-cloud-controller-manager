@@ -20,7 +20,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
@@ -29,7 +28,6 @@ import (
 	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/klog/v2"
 )
 
 func getHCloudServerByName(ctx context.Context, c *hcloud.Client, name string) (*hcloud.Server, error) {
@@ -118,48 +116,8 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *mod
 	return server, nil
 }
 
-func providerIDToServerID(providerID string) (id int64, isHCloudServer bool, err error) {
-	const op = "hcloud/providerIDToServerID"
-	metrics.OperationCalled.WithLabelValues(op).Inc()
-
-	providerPrefixHCloud := providerName + "://"
-	providerPrefixRobot := providerName + "://" + hostNamePrefixRobot
-
-	if !strings.HasPrefix(providerID, providerPrefixHCloud) && !strings.HasPrefix(providerID, providerPrefixRobot) {
-		klog.Infof("%s: make sure your cluster configured for an external cloud provider", op)
-		return 0, false, fmt.Errorf("%s: missing prefix %s or %s. %s", providerPrefixHCloud, providerPrefixRobot, op, providerID)
-	}
-
-	isHCloudServer = true
-	idString := providerID
-	if strings.HasPrefix(providerID, providerPrefixRobot) {
-		isHCloudServer = false
-		idString = strings.ReplaceAll(idString, providerPrefixRobot, "")
-	} else {
-		idString = strings.ReplaceAll(providerID, providerPrefixHCloud, "")
-	}
-
-	if idString == "" {
-		return 0, false, fmt.Errorf("%s: missing serverID: %s", op, providerID)
-	}
-
-	id, err = strconv.ParseInt(idString, 10, 64)
-	if err != nil {
-		return 0, false, fmt.Errorf("%s: invalid serverID: %s", op, providerID)
-	}
-	return id, isHCloudServer, nil
-}
-
 func isHCloudServerByName(name string) bool {
 	return !strings.HasPrefix(name, hostNamePrefixRobot)
-}
-
-func serverIDToProviderIDRobot(serverID int) string {
-	return fmt.Sprintf("%s://%s%d", providerName, hostNamePrefixRobot, serverID)
-}
-
-func serverIDToProviderIDHCloud(serverID int64) string {
-	return fmt.Sprintf("%s://%d", providerName, serverID)
 }
 
 func getInstanceTypeOfRobotServer(bmServer *models.Server) string {
