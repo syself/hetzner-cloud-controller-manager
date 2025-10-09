@@ -12,13 +12,8 @@ const (
 	// It MUST not be changed, otherwise existing nodes will not be recognized anymore.
 	prefixCloud = "hcloud://"
 
-	// prefixRobot is the prefix for Robot Server provider IDs.
-	//
-	// It MUST not be changed, otherwise existing nodes will not be recognized anymore.
-	prefixRobot = "hrobot://"
-
-	// prefixRobot is the prefix used by the Syself Fork for Robot Server provider IDs.
-	// This Prefix is no longer used for new nodes, instead [prefixRobot] should be used.
+	// prefixRobotLegacy is the prefix used by the Syself Fork for Robot Server provider IDs.
+	// This Prefix is no longer used for new nodes, instead prefix "hrobot://" should be used.
 	//
 	// It MUST not be changed, otherwise existing nodes will not be recognized anymore.
 	prefixRobotLegacy = "hcloud://bm-"
@@ -30,9 +25,8 @@ type UnkownPrefixError struct {
 
 func (e *UnkownPrefixError) Error() string {
 	return fmt.Sprintf(
-		"Provider ID does not have one of the the expected prefixes (%s, %s, %s): %s",
+		"Provider ID does not have one of the the expected prefixes (%s, %s): %s",
 		prefixCloud,
-		prefixRobot,
 		prefixRobotLegacy,
 		e.ProviderID,
 	)
@@ -46,9 +40,6 @@ func (e *UnkownPrefixError) Error() string {
 func ToServerID(providerID string) (id int64, isCloudServer bool, err error) {
 	idString := ""
 	switch {
-	case strings.HasPrefix(providerID, prefixRobot):
-		idString = strings.ReplaceAll(providerID, prefixRobot, "")
-
 	case strings.HasPrefix(providerID, prefixRobotLegacy):
 		// This case needs to be before [prefixCloud], as [prefixCloud] is a superset of [prefixRobotLegacy]
 		idString = strings.ReplaceAll(providerID, prefixRobotLegacy, "")

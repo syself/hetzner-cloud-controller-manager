@@ -93,27 +93,6 @@ func TestToServerID(t *testing.T) {
 			wantErr:           errors.New("providerID is missing a serverID: hcloud://"),
 		},
 		{
-			name:              "[robot] simple id",
-			providerID:        "hrobot://4321",
-			wantID:            4321,
-			wantIsCloudServer: false,
-			wantErr:           nil,
-		},
-		{
-			name:              "[robot] invalid id",
-			providerID:        "hrobot://my-robot",
-			wantID:            0,
-			wantIsCloudServer: false,
-			wantErr:           errors.New("unable to parse server id: hrobot://my-robot"),
-		},
-		{
-			name:              "[robot] missing id",
-			providerID:        "hrobot://",
-			wantID:            0,
-			wantIsCloudServer: false,
-			wantErr:           errors.New("providerID is missing a serverID: hrobot://"),
-		},
-		{
 			name:              "[robot-syself] simple id",
 			providerID:        "hcloud://bm-4321",
 			wantID:            4321,
@@ -206,7 +185,6 @@ func FuzzRoundTripRobot(f *testing.F) {
 
 func FuzzToServerId(f *testing.F) {
 	f.Add("hcloud://123123123")
-	f.Add("hrobot://123123123")
 	f.Add("hcloud://bm-123123123")
 
 	f.Fuzz(func(t *testing.T, providerID string) {
