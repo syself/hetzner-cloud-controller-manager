@@ -22,6 +22,7 @@ import (
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/providerid"
 	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
@@ -58,7 +59,7 @@ func (i *instances) lookupServer(
 ) (hcloudServer *hcloud.Server, bmServer *models.Server, isHCloudServer bool, err error) {
 	if node.Spec.ProviderID != "" {
 		var serverID int64
-		serverID, isHCloudServer, err = providerIDToServerID(node.Spec.ProviderID)
+		serverID, isHCloudServer, err = providerid.ToServerID(node.Spec.ProviderID)
 		if err != nil {
 			return nil, nil, false, fmt.Errorf("failed to convert provider id to server id: %w", err)
 		}
@@ -144,7 +145,7 @@ func (i *instances) InstanceMetadata(ctx context.Context, node *corev1.Node) (*c
 				node.Name, errServerNotFound)
 		}
 		return &cloudprovider.InstanceMetadata{
-			ProviderID:    serverIDToProviderIDHCloud(hcloudServer.ID),
+			ProviderID:    providerid.FromCloudServerID(hcloudServer.ID),
 			InstanceType:  hcloudServer.ServerType.Name,
 			NodeAddresses: hcloudNodeAddresses(i.addressFamily, i.networkID, hcloudServer),
 			Zone:          hcloudServer.Datacenter.Name,
@@ -156,7 +157,7 @@ func (i *instances) InstanceMetadata(ctx context.Context, node *corev1.Node) (*c
 			node.Name, errServerNotFound)
 	}
 	return &cloudprovider.InstanceMetadata{
-		ProviderID:    serverIDToProviderIDRobot(bmServer.ServerNumber),
+		ProviderID:    providerid.LegacyFromRobotServerNumber(bmServer.ServerNumber),
 		InstanceType:  getInstanceTypeOfRobotServer(bmServer),
 		NodeAddresses: robotNodeAddresses(i.addressFamily, bmServer),
 		Zone:          getZoneOfRobotServer(bmServer),
