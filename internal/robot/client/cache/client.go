@@ -72,6 +72,10 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
+		if robotUser == "" || robotPassword == "" {
+			klog.Infof("Hetzner robot is not supported because of insufficient credentials: credentials file exists but username or password is empty")
+			return nil, nil
+		}
 	}
 	c := hrobot.NewBasicAuthClientWithCustomHttpClient(robotUser, robotPassword, httpClient)
 	if baseURL != "" {
