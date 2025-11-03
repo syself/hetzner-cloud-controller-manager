@@ -93,8 +93,15 @@ func TestToServerID(t *testing.T) {
 			wantErr:           errors.New("providerID is missing a serverID: hcloud://"),
 		},
 		{
-			name:              "[robot-syself] simple id",
+			name:              "[robot-syself] simple id (legacy)",
 			providerID:        "hcloud://bm-4321",
+			wantID:            4321,
+			wantIsCloudServer: false,
+			wantErr:           nil,
+		},
+		{
+			name:              "[robot-syself] simple id (new)",
+			providerID:        "hrobot://4321",
 			wantID:            4321,
 			wantIsCloudServer: false,
 			wantErr:           nil,

@@ -9,6 +9,13 @@ The Hetzner Cloud controller manager seamlessly integrates your Kubernetes clust
 
 ## About the Fork
 
+We plan to support the [upstream hcloud
+ccm](https://github.com/hetznercloud/hcloud-cloud-controller-manager/) in
+[CAPH](https://github.com/syself/cluster-api-provider-hetzner/). After that, this fork is no longer
+needed.
+
+## About the Fork (old)
+
 In the long run, we (Syself) would like to switch to the [upstream ccm](https://github.com/syself/hetzner-cloud-controller-manager/) again.
 
 A lot of changes were made in the upstream fork, and we don't plan to merge them into our fork.
