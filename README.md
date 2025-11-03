@@ -17,6 +17,7 @@ Instead we plan to create PRs in upstream, so that our fork is no longer needed.
 
 Features/PRs which are different in our fork. We should create PRs in upstream for these:
 
+* [Hot Reload for secrets](https://github.com/syself/hetzner-cloud-controller-manager/pull/49)
 * [separate user agent from HCCM](https://github.com/syself/hetzner-cloud-controller-manager/pull/42): Make this configurable in upstream.
 * [ROBOT_DEBUG, show stacktrace on api-calls](https://github.com/syself/hetzner-cloud-controller-manager/pull/41>) Via ROBOT_DEBUG show every stack-trace which uses the robot-API (to debug why rate-limiting was reached)
 * [PR add version information to the controller binary](https://github.com/syself/hetzner-cloud-controller-manager/pull/28): Build process is different in upstream.
@@ -33,7 +34,6 @@ Additional PRs we should create in upstream, so that we can use upstream instead
 
 PRs which are **not** needed in upstream, because upstream has this feature:
 
-* [Hot Reload for secrets](https://github.com/syself/hetzner-cloud-controller-manager/pull/49)
 * [PR getInstanceTypeOfRobotServer: convert invalid characters to dashes](https://github.com/syself/hetzner-cloud-controller-manager/pull/40)
 * [Make robot client optional for lb client](https://github.com/syself/hetzner-cloud-controller-manager/pull/37): upstream uses ROBOT_ENABLED. We need to set that env var.
 * [Fix InstanceExists for baremetal servers, check node name](https://github.com/syself/hetzner-cloud-controller-manager/pull/32)
