@@ -33,6 +33,7 @@ Additional PRs we should create in upstream, so that we can use upstream instead
 
 PRs which are **not** needed in upstream, because upstream has this feature:
 
+* [Hot Reload for secrets](https://github.com/syself/hetzner-cloud-controller-manager/pull/49)
 * [PR getInstanceTypeOfRobotServer: convert invalid characters to dashes](https://github.com/syself/hetzner-cloud-controller-manager/pull/40)
 * [Make robot client optional for lb client](https://github.com/syself/hetzner-cloud-controller-manager/pull/37): upstream uses ROBOT_ENABLED. We need to set that env var.
 * [Fix InstanceExists for baremetal servers, check node name](https://github.com/syself/hetzner-cloud-controller-manager/pull/32)
