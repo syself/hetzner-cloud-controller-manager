@@ -17,6 +17,7 @@ Instead we plan to create PRs in upstream, so that our fork is no longer needed.
 
 Features/PRs which are different in our fork. We should create PRs in upstream for these:
 
+* [Hot Reload for secrets](https://github.com/syself/hetzner-cloud-controller-manager/pull/49)
 * [separate user agent from HCCM](https://github.com/syself/hetzner-cloud-controller-manager/pull/42): Make this configurable in upstream.
 * [ROBOT_DEBUG, show stacktrace on api-calls](https://github.com/syself/hetzner-cloud-controller-manager/pull/41>) Via ROBOT_DEBUG show every stack-trace which uses the robot-API (to debug why rate-limiting was reached)
 * [PR add version information to the controller binary](https://github.com/syself/hetzner-cloud-controller-manager/pull/28): Build process is different in upstream.
