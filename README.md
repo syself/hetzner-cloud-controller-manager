@@ -80,9 +80,11 @@ See [CAPH docs](https://syself.com/docs/caph/topics/baremetal/creating-workload-
 
 ## Usage
 
-We recommend to mount the secret `hetzner` as volume and make it avaiable for the container as `/etc/hetzner-secret`.
-Then the credentials are automatically reloaded, when the secret changes.
-You see an example in the [ccm helm chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner)
+We recommend to mount the secret `hetzner` as volume and make it avaiable for the container as
+`/etc/hetzner-secret`. Then the credentials are automatically reloaded, when the secret changes.
+When you use the hot-reloading, be sure that the keys in the secret use these names: "hcloud" (for
+the HCLOUD_TOKEN), "robot-user" and "robot-password". You see an example in the [ccm helm
+chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner)
 
 ## Env Variables
 
