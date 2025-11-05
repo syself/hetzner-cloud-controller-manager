@@ -18,7 +18,7 @@ Instead we plan to create PRs in upstream, so that our fork is no longer needed.
 Features/PRs which are different in our fork. We should create PRs in upstream for these:
 
 * [PR hotreload credentials, when mounted secret changed](https://github.com/syself/hetzner-cloud-controller-manager/pull/49)
-* [PR rate limiting hcloud](https://github.com/syself/hetzner-cloud-controller-manager/pull/20)
+* [PR create events, when robot rate-limit was reached](https://github.com/syself/hetzner-cloud-controller-manager/pull/20)
 
 Less important features in our fork, which are not in upstream:
 
