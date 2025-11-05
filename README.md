@@ -16,7 +16,7 @@ needed.
 
 ## About the Fork (old)
 
-In the long run, we (Syself) would like to switch to the [upstream ccm](https://github.com/syself/hetzner-cloud-controller-manager/) again.
+In the long run, we (Syself) would like to switch to the [upstream ccm](https://github.com/hetznercloud/hcloud-cloud-controller-manager/) again.
 
 A lot of changes were made in the upstream fork, and we don't plan to merge them into our fork.
 
@@ -72,7 +72,7 @@ See [CAPH docs](https://syself.com/docs/caph/topics/baremetal/creating-workload-
 We recommend to mount the secret `hetzner` as volume and make it avaiable for the container as
 `/etc/hetzner-secret`. Then the credentials are automatically reloaded, when the secret changes.
 When you use the hot-reloading, be sure that the keys in the secret use these names: "hcloud" (for
-the HCLOUD_TOKEN), "robot-user" and "robot-password". For compatiblity with the upstream hcloud-ccm
+the HCLOUD_TOKEN), "robot-user" and "robot-password". For compatibility with the upstream hcloud-ccm
 we support the key "token" instead of "hcloud". You see an example in the [ccm helm
 chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner)
 
