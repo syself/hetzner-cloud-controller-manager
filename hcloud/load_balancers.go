@@ -194,7 +194,7 @@ func (l *loadBalancers) getLBStatus(lb *hcloud.LoadBalancer, service *corev1.Ser
 		ipMode = corev1.LoadBalancerIPModeProxy
 	}
 
-	/// End from upstream hcloud ccm (proxyProtocolEnabled)
+	// End from upstream hcloud ccm (proxyProtocolEnabled)
 
 	// Either set the Hostname or the IPs (below).
 	// See: https://github.com/kubernetes/kubernetes/issues/66607
