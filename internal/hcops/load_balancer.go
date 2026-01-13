@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"net"
-	"strconv"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/providerid"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
@@ -627,8 +626,19 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 
 	// Extract HC server IDs of all K8S nodes assigned to the K8S cluster.
 	for _, node := range nodes {
-		id, isHCloudServer, err := providerIDToServerID(node.Spec.ProviderID)
+		id, isHCloudServer, err := providerid.ToServerID(node.Spec.ProviderID)
 		if err != nil {
+			if errors.As(err, new(*providerid.UnkownPrefixError)) {
+				// ProviderID has unknown prefix, cluster might have non-hccm nodes that can not be added to the
+				// Load Balancer. Emitting an event and ignoring that Node in this reconciliation loop.
+				l.Recorder.Event(
+					node,
+					corev1.EventTypeWarning,
+					"UnknownProviderIDPrefix",
+					fmt.Sprintf("Node could not be added to Load Balancer for service %s because the provider ID does not match any known format", svc.Name),
+				)
+				continue
+			}
 			return changed, fmt.Errorf("%s: %w", op, err)
 		}
 		if isHCloudServer {
@@ -1371,44 +1381,6 @@ func (b *hclbServiceOptsBuilder) buildUpdateServiceOpts() (hcloud.LoadBalancerUp
 	}
 
 	return opts, nil
-}
-
-// TODO this is a copy of the function in hcloud/utils.go => refactor.
-const (
-	providerName        = "hcloud"
-	hostNamePrefixRobot = "bm-"
-)
-
-func providerIDToServerID(providerID string) (id int64, isHCloudServer bool, err error) {
-	const op = "hcloud/providerIDToServerID"
-	metrics.OperationCalled.WithLabelValues(op).Inc()
-
-	providerPrefixHCloud := providerName + "://"
-	providerPrefixRobot := providerName + "://" + hostNamePrefixRobot
-
-	if !strings.HasPrefix(providerID, providerPrefixHCloud) && !strings.HasPrefix(providerID, providerPrefixRobot) {
-		klog.Infof("%s: make sure your cluster configured for an external cloud provider", op)
-		return 0, false, fmt.Errorf("%s: missing prefix %s or %s. %s", providerPrefixHCloud, providerPrefixRobot, op, providerID)
-	}
-
-	isHCloudServer = true
-	idString := providerID
-	if strings.HasPrefix(providerID, providerPrefixRobot) {
-		isHCloudServer = false
-		idString = strings.ReplaceAll(idString, providerPrefixRobot, "")
-	} else {
-		idString = strings.ReplaceAll(providerID, providerPrefixHCloud, "")
-	}
-
-	if idString == "" {
-		return 0, false, fmt.Errorf("%s: missing serverID: %s", op, providerID)
-	}
-
-	id, err = strconv.ParseInt(idString, 10, 64)
-	if err != nil {
-		return 0, false, fmt.Errorf("%s: invalid serverID: %s", op, providerID)
-	}
-	return id, isHCloudServer, nil
 }
 
 func lbAttached(lb *hcloud.LoadBalancer, nwID int64) bool {

@@ -81,29 +81,11 @@ func (l *loadBalancers) GetLoadBalancer(
 		return nil, false, fmt.Errorf("%s: %v", op, err)
 	}
 
-	if v, ok := annotation.LBHostname.StringFromService(service); ok {
-		return &corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{{Hostname: v}},
-		}, true, nil
-	}
-
-	ingresses := []corev1.LoadBalancerIngress{
-		{
-			IP: lb.PublicNet.IPv4.IP.String(),
-		},
-	}
-
-	disableIPV6, err := l.getDisableIPv6(service)
+	lbStatus, err := l.getLBStatus(lb, service, op)
 	if err != nil {
-		return nil, false, fmt.Errorf("%s: %v", op, err)
+		return nil, false, fmt.Errorf("getLBStatus failed: %w", err)
 	}
-	if !disableIPV6 {
-		ingresses = append(ingresses, corev1.LoadBalancerIngress{
-			IP: lb.PublicNet.IPv6.IP.String(),
-		})
-	}
-
-	return &corev1.LoadBalancerStatus{Ingress: ingresses}, true, nil
+	return lbStatus, true, nil
 }
 
 func (l *loadBalancers) GetLoadBalancerName(_ context.Context, _ string, service *corev1.Service) string {
@@ -114,7 +96,7 @@ func (l *loadBalancers) GetLoadBalancerName(_ context.Context, _ string, service
 }
 
 func (l *loadBalancers) EnsureLoadBalancer(
-	ctx context.Context, clusterName string, svc *corev1.Service, nodes []*corev1.Node,
+	ctx context.Context, clusterName string, service *corev1.Service, nodes []*corev1.Node,
 ) (*corev1.LoadBalancerStatus, error) {
 	const op = "hcloud/loadBalancers.EnsureLoadBalancer"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
@@ -126,7 +108,7 @@ func (l *loadBalancers) EnsureLoadBalancer(
 		selectedNodes []*corev1.Node
 	)
 
-	selectedNodes, err = matchNodeSelector(svc, nodes)
+	selectedNodes, err = matchNodeSelector(service, nodes)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -135,9 +117,9 @@ func (l *loadBalancers) EnsureLoadBalancer(
 	for i, n := range selectedNodes {
 		nodeNames[i] = n.Name
 	}
-	klog.InfoS("ensure Load Balancer", "op", op, "service", svc.Name, "nodes", nodeNames)
+	klog.InfoS("ensure Load Balancer", "op", op, "service", service.Name, "nodes", nodeNames)
 
-	lb, err = l.lbOps.GetByK8SServiceUID(ctx, svc)
+	lb, err = l.lbOps.GetByK8SServiceUID(ctx, service)
 	if err != nil && !errors.Is(err, hcops.ErrNotFound) {
 		return nil, fmt.Errorf("%s: %v", op, err)
 	}
@@ -150,7 +132,7 @@ func (l *loadBalancers) EnsureLoadBalancer(
 	//
 	// 2. Import of load balancers which were created by other means but
 	// should be re-used by the cloud controller manager.
-	lbName := l.GetLoadBalancerName(ctx, clusterName, svc)
+	lbName := l.GetLoadBalancerName(ctx, clusterName, service)
 	if errors.Is(err, hcops.ErrNotFound) {
 		lb, err = l.lbOps.GetByName(ctx, lbName)
 		if err != nil && !errors.Is(err, hcops.ErrNotFound) {
@@ -160,25 +142,25 @@ func (l *loadBalancers) EnsureLoadBalancer(
 
 	// If we were still not able to find the load balancer we create it.
 	if errors.Is(err, hcops.ErrNotFound) {
-		lb, err = l.lbOps.Create(ctx, lbName, svc)
+		lb, err = l.lbOps.Create(ctx, lbName, service)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 	}
 
-	lbChanged, err := l.lbOps.ReconcileHCLB(ctx, lb, svc)
+	lbChanged, err := l.lbOps.ReconcileHCLB(ctx, lb, service)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	reload = reload || lbChanged
 
-	servicesChanged, err := l.lbOps.ReconcileHCLBServices(ctx, lb, svc)
+	servicesChanged, err := l.lbOps.ReconcileHCLBServices(ctx, lb, service)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	reload = reload || servicesChanged
 
-	targetsChanged, err := l.lbOps.ReconcileHCLBTargets(ctx, lb, svc, selectedNodes)
+	targetsChanged, err := l.lbOps.ReconcileHCLBTargets(ctx, lb, service, selectedNodes)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
@@ -192,44 +174,74 @@ func (l *loadBalancers) EnsureLoadBalancer(
 		}
 	}
 
-	if err := annotation.LBToService(svc, lb); err != nil {
+	if err := annotation.LBToService(service, lb); err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+	return l.getLBStatus(lb, service, op)
+}
+
+func (l *loadBalancers) getLBStatus(lb *hcloud.LoadBalancer, service *corev1.Service, op string) (*corev1.LoadBalancerStatus, error) {
+	// Start from upstream hcloud ccm (proxyProtocolEnabled)
+	// In upstream hcloud ccm, this code is in buildLoadBalancerStatusIngress()
+	// The next lines are taken from there.
+	ipMode := corev1.LoadBalancerIPModeVIP
+	proxyProtocolEnabled, err := l.getProxyProtocolEnabled(service)
+	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
+	if proxyProtocolEnabled {
+		ipMode = corev1.LoadBalancerIPModeProxy
+	}
+
+	// End from upstream hcloud ccm (proxyProtocolEnabled)
+
 	// Either set the Hostname or the IPs (below).
 	// See: https://github.com/kubernetes/kubernetes/issues/66607
-	if v, ok := annotation.LBHostname.StringFromService(svc); ok {
+	if v, ok := annotation.LBHostname.StringFromService(service); ok {
 		return &corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{{Hostname: v}},
+			Ingress: []corev1.LoadBalancerIngress{{
+				Hostname: v,
+				IPMode:   &ipMode,
+			}},
 		}, nil
 	}
 
 	var ingress []corev1.LoadBalancerIngress
 
-	disablePubNet, err := annotation.LBDisablePublicNetwork.BoolFromService(svc)
+	disablePubNet, err := annotation.LBDisablePublicNetwork.BoolFromService(service)
 	if err != nil && !errors.Is(err, annotation.ErrNotSet) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
 	if !disablePubNet {
-		ingress = append(ingress, corev1.LoadBalancerIngress{IP: lb.PublicNet.IPv4.IP.String()})
+		ingress = append(ingress, corev1.LoadBalancerIngress{
+			IP:     lb.PublicNet.IPv4.IP.String(),
+			IPMode: &ipMode,
+		})
 
-		disableIPV6, err := l.getDisableIPv6(svc)
+		disableIPV6, err := l.getDisableIPv6(service)
 		if err != nil {
 			return nil, fmt.Errorf("%s: %w", op, err)
 		}
 		if !disableIPV6 {
-			ingress = append(ingress, corev1.LoadBalancerIngress{IP: lb.PublicNet.IPv6.IP.String()})
+			ingress = append(ingress, corev1.LoadBalancerIngress{
+				IP:     lb.PublicNet.IPv6.IP.String(),
+				IPMode: &ipMode,
+			})
 		}
 	}
 
-	disablePrivIngress, err := l.getDisablePrivateIngress(svc)
+	disablePrivIngress, err := l.getDisablePrivateIngress(service)
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	if !disablePrivIngress {
 		for _, nw := range lb.PrivateNet {
-			ingress = append(ingress, corev1.LoadBalancerIngress{IP: nw.IP.String()})
+			ingress = append(ingress, corev1.LoadBalancerIngress{
+				IP:     nw.IP.String(),
+				IPMode: &ipMode,
+			})
 		}
 	}
 
@@ -243,6 +255,17 @@ func (l *loadBalancers) getDisablePrivateIngress(svc *corev1.Service) (bool, err
 	}
 	if errors.Is(err, annotation.ErrNotSet) {
 		return l.disablePrivateIngressDefault, nil
+	}
+	return false, err
+}
+
+func (l *loadBalancers) getProxyProtocolEnabled(svc *corev1.Service) (bool, error) {
+	enable, err := annotation.LBSvcProxyProtocol.BoolFromService(svc)
+	if err == nil {
+		return enable, nil
+	}
+	if errors.Is(err, annotation.ErrNotSet) {
+		return false, nil
 	}
 	return false, err
 }
