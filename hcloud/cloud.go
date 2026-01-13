@@ -72,7 +72,7 @@ const (
 
 var errMissingRobotCredentials = errors.New("missing robot credentials - cannot connect to robot API")
 
-func providerVersion() string {
+func ProviderVersion() string {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
 		return "failed-to-get-version-info"
@@ -125,7 +125,7 @@ func newHcloudClient(rootDir string) (*hcloud.Client, error) {
 	}
 	opts := []hcloud.ClientOption{
 		hcloud.WithToken(token),
-		hcloud.WithApplication("hetzner-cloud-controller", providerVersion()),
+		hcloud.WithApplication("hetzner-cloud-controller", ProviderVersion()),
 	}
 
 	// start metrics server if enabled (enabled by default)
@@ -219,7 +219,7 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	klog.Infof("Hetzner Cloud k8s cloud controller %s started\n", providerVersion())
+	klog.Infof("Hetzner Cloud k8s cloud controller %s started\n", ProviderVersion())
 
 	lbOpsDefaults.DisableIPv6 = lbDisableIPv6
 

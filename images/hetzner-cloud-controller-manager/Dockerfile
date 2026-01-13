@@ -21,7 +21,7 @@ WORKDIR /src/hetzner-cloud-controller-manager
 RUN --mount=type=cache,target=/root/.cache --mount=type=cache,target=/go/pkg \
     GOOS=${TARGETOS} GOARCH=${TARGETARCH} CGO_ENABLED=0 \
     go build -mod=readonly -ldflags "-extldflags '-static'" \
-    -o manager main.go
+    -o manager .
 
 FROM --platform=${BUILDPLATFORM} gcr.io/distroless/static:nonroot
 WORKDIR /
