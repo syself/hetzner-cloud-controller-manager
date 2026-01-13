@@ -19,31 +19,31 @@ func (m *RobotClient) SetCredentials(_, _ string) error {
 	return args.Error(3)
 }
 
-func (m *RobotClient) BootLinuxDelete(id int) (*models.Linux, error) {
+func (m *RobotClient) BootLinuxDelete(_ int) (*models.Linux, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) BootLinuxGet(id int) (*models.Linux, error) {
+func (m *RobotClient) BootLinuxGet(_ int) (*models.Linux, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) BootLinuxSet(id int, input *models.LinuxSetInput) (*models.Linux, error) {
+func (m *RobotClient) BootLinuxSet(_ int, _ *models.LinuxSetInput) (*models.Linux, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) BootRescueDelete(id int) (*models.Rescue, error) {
+func (m *RobotClient) BootRescueDelete(_ int) (*models.Rescue, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) BootRescueGet(id int) (*models.Rescue, error) {
+func (m *RobotClient) BootRescueGet(_ int) (*models.Rescue, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) BootRescueSet(id int, input *models.RescueSetInput) (*models.Rescue, error) {
+func (m *RobotClient) BootRescueSet(_ int, _ *models.RescueSetInput) (*models.Rescue, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) FailoverGet(ip string) (*models.Failover, error) {
+func (m *RobotClient) FailoverGet(_ string) (*models.Failover, error) {
 	panic("this method should not be called")
 }
 
@@ -63,11 +63,11 @@ func (m *RobotClient) KeyGetList() ([]models.Key, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) KeySet(input *models.KeySetInput) (*models.Key, error) {
+func (m *RobotClient) KeySet(_ *models.KeySetInput) (*models.Key, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) RDnsGet(ip string) (*models.Rdns, error) {
+func (m *RobotClient) RDnsGet(_ string) (*models.Rdns, error) {
 	panic("this method should not be called")
 }
 
@@ -75,31 +75,31 @@ func (m *RobotClient) RDnsGetList() ([]models.Rdns, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) ResetGet(id int) (*models.Reset, error) {
+func (m *RobotClient) ResetGet(_ int) (*models.Reset, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) ResetSet(id int, input *models.ResetSetInput) (*models.ResetPost, error) {
+func (m *RobotClient) ResetSet(_ int, _ *models.ResetSetInput) (*models.ResetPost, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) ServerGet(id int) (*models.Server, error) {
+func (m *RobotClient) ServerGet(_ int) (*models.Server, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) ServerReverse(id int) (*models.Cancellation, error) {
+func (m *RobotClient) ServerReverse(_ int) (*models.Cancellation, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) ServerSetName(id int, input *models.ServerSetNameInput) (*models.Server, error) {
+func (m *RobotClient) ServerSetName(_ int, _ *models.ServerSetNameInput) (*models.Server, error) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) SetBaseURL(baseURL string) {
+func (m *RobotClient) SetBaseURL(_ string) {
 	panic("this method should not be called")
 }
 
-func (m *RobotClient) SetUserAgent(userAgent string) {
+func (m *RobotClient) SetUserAgent(_ string) {
 	panic("this method should not be called")
 }
 
