@@ -72,6 +72,8 @@ const (
 
 var errMissingRobotCredentials = errors.New("missing robot credentials - cannot connect to robot API")
 
+// ProviderVersion shows the provider version via debug.ReadBuildInfo(). If this returns the empty
+// string, read https://github.com/golang/go/issues/51279.
 func ProviderVersion() string {
 	info, ok := debug.ReadBuildInfo()
 	if !ok {
