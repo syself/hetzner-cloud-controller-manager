@@ -1,7 +1,7 @@
 ---
 linters-settings:
   errcheck:
-    exclude: ./.errcheck_excludes.txt
+    exclude-functions: []
   exhaustive:
     default-signifies-exhaustive: true
   gci:
@@ -28,7 +28,7 @@ linters:
     - errcheck
     - errname
     - exhaustive
-    - exportloopref
+    - copyloopvar
     - gci
     - gocritic
     - godot

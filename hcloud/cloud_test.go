@@ -61,7 +61,7 @@ func newTestEnv() testEnv {
 	client := hcloud.NewClient(
 		hcloud.WithEndpoint(server.URL),
 		hcloud.WithToken("jr5g7ZHpPptyhJzZyHw2Pqu4g9gTqDvEceYpngPf79jNZXCeTYQ4uArypFM3nh75"),
-		hcloud.WithBackoffFunc(func(_ int) time.Duration { return 0 }),
+		hcloud.WithRetryOpts(hcloud.RetryOpts{BackoffFunc: hcloud.ConstantBackoff(0), MaxRetries: 5}),
 		// hcloud.WithDebugWriter(os.Stdout),
 	)
 	robotClient := hrobot.NewBasicAuthClient("", "")
@@ -84,7 +84,7 @@ func TestNewCloud(t *testing.T) {
 		"HCLOUD_METRICS_ENABLED", "false",
 	)
 	defer resetEnv()
-	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(
 			schema.ServerListResponse{
 				Servers: []schema.Server{},
@@ -135,7 +135,7 @@ func TestNewCloudInvalidToken(t *testing.T) {
 		"HCLOUD_METRICS_ENABLED", "false",
 	)
 	defer resetEnv()
-	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusUnauthorized)
 		json.NewEncoder(w).Encode(
@@ -164,7 +164,7 @@ func TestCloud(t *testing.T) {
 		"ROBOT_PASSWORD", "pass123",
 	)
 	defer resetEnv()
-	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(
 			schema.ServerListResponse{
 				Servers: []schema.Server{
@@ -193,7 +193,7 @@ func TestCloud(t *testing.T) {
 			},
 		)
 	})
-	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/networks/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(
 			schema.NetworkGetResponse{
 				Network: schema.Network{
@@ -362,7 +362,6 @@ func TestLoadBalancerDefaultsFromEnv(t *testing.T) {
 	}
 
 	for _, c := range cases {
-		c := c // prevent scopelint from complaining
 		t.Run(c.name, func(t *testing.T) {
 			previousEnvVars := map[string]string{}
 			unsetEnvVars := []string{}
@@ -485,7 +484,7 @@ func Test_EnsureLoadBalancer(t *testing.T) {
 	mux := http.NewServeMux()
 	server := httptest.NewServer(mux)
 
-	mux.HandleFunc("/servers", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/servers", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(
 			schema.ServerListResponse{
 				Servers: []schema.Server{},
@@ -496,14 +495,14 @@ func Test_EnsureLoadBalancer(t *testing.T) {
 		ID:   0,
 		Name: "mylb",
 	}
-	mux.HandleFunc("/load_balancers", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/load_balancers", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(
 			schema.LoadBalancerListResponse{
 				LoadBalancers: []schema.LoadBalancer{schemaLB},
 			},
 		)
 	})
-	mux.HandleFunc("/robot/server", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode([]models.ServerResponse{
 			{
 				Server: models.Server{

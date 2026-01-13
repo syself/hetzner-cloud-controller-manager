@@ -55,7 +55,7 @@ func main() {
 
 	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, app.DefaultInitFuncConstructors, names.CCMControllerAliases(), fss, wait.NeverStop)
 
-	command.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+	command.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
 		if printVersion {
 			fmt.Println(hcloud.ProviderVersion())
 			os.Exit(0)
