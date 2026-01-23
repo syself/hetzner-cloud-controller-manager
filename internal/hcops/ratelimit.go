@@ -60,9 +60,8 @@ func (rl *rateLimitHandler) isExceeded() bool {
 }
 
 func (rl *rateLimitHandler) timeOfNextPossibleAPICall() time.Time {
-	emptyTime := time.Time{}
-	if rl.lastChecked == emptyTime {
-		return emptyTime
+	if rl.lastChecked.IsZero() {
+		return time.Time{}
 	}
 	return rl.lastChecked.Add(rl.waitTime)
 }

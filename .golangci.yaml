@@ -1,41 +1,16 @@
----
-linters-settings:
-  errcheck:
-    exclude: ./.errcheck_excludes.txt
-  exhaustive:
-    default-signifies-exhaustive: true
-  gci:
-    sections:
-      - standard
-      - default
-
-  importas:
-    no-unaliased: true
-    alias:
-      # Kubernetes
-      - pkg: k8s.io/api/core/v1
-        alias: corev1
-      - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
-        alias: metav1
-
-  misspell:
-    locale: "US"
-
+version: "2"
 linters:
-  disable-all: true
+  default: standard
   enable:
     - bodyclose
+    - copyloopvar
     - errcheck
     - errname
     - exhaustive
-    - exportloopref
-    - gci
     - gocritic
     - godot
-    - goimports
     - gomodguard
     - gosec
-    - gosimple
     - govet
     - importas
     - ineffassign
@@ -43,17 +18,42 @@ linters:
     - prealloc
     - revive
     - staticcheck
-    - typecheck
     - unparam
     - unused
     - whitespace
-
-issues:
-  exclude-rules:
-    - path: (_test\.go|testing\.go|testsupport|e2etests)
-      linters:
-        - gosec
-        - errcheck
-    - path: internal/mocks
-      linters:
-        - unparam
+  settings:
+    exhaustive:
+      default-signifies-exhaustive: true
+    importas:
+      alias:
+        - pkg: k8s.io/api/core/v1
+          alias: corev1
+        - pkg: k8s.io/apimachinery/pkg/apis/meta/v1
+          alias: metav1
+      no-unaliased: true
+    misspell:
+      locale: US
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - common-false-positives
+      - legacy
+      - std-error-handling
+    rules:
+      - linters:
+          - errcheck
+          - gosec
+        path: (_test\.go|testing\.go|testsupport|e2etests)
+      - linters:
+          - unparam
+        path: internal/mocks
+formatters:
+  enable:
+    - gci
+    - goimports
+  settings:
+    gci:
+      sections:
+        - standard
+        - default

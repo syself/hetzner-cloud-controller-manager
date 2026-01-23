@@ -161,7 +161,7 @@ func loadRobotCredentials(credentialsDir string, robotClient robotclient.Client)
 		return fmt.Errorf("SetCredentials: %w", err)
 	}
 
-	klog.Infof("Hetzner Robot credentials updated to new value: %q %s...", username, password[:3])
+	klog.Infof("Hetzner Robot credentials updated to new value: %q %s...", username, password[:min(3, len(password))])
 	return nil
 }
 
@@ -206,7 +206,7 @@ func loadHcloudCredentials(credentialsDir string, hcloudClient *hcloud.Client) e
 
 	if len(token) != 64 {
 		return fmt.Errorf("loadHcloudCredentials: entered token (%s...) is invalid (must be exactly 64 characters long)",
-			token[:5])
+			token[:min(5, len(token))])
 	}
 
 	if token == oldHcloudToken {
@@ -220,14 +220,14 @@ func loadHcloudCredentials(credentialsDir string, hcloudClient *hcloud.Client) e
 	// Update credentials of hcloudClient
 	hcloud.WithToken(token)(hcloudClient)
 
-	klog.Infof("Hetzner Cloud token updated to new value: %s...", token[:5])
+	klog.Infof("Hetzner Cloud token updated to new value: %s...", token[:min(5, len(token))])
 	return nil
 }
 
 func GetInitialHcloudCredentialsFromDirectory(credentialsDir string) (string, error) {
 	token, err := readHcloudCredentials(credentialsDir)
 	if err != nil {
-		return "", fmt.Errorf("Getting initial credentials: readHcloudCredentials: %w", err)
+		return "", fmt.Errorf("getting initial credentials: readHcloudCredentials: %w", err)
 	}
 
 	// Update global variable

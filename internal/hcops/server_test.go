@@ -26,7 +26,7 @@ func TestAllServersCache_CacheMiss(t *testing.T) {
 	}
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.ServerClient.
 				On("All", mock.Anything).
 				Return([]*hcloud.Server{srv}, nil)
@@ -49,7 +49,7 @@ func TestAllServersCache_CacheHit(t *testing.T) {
 	}
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.ServerClient.
 				On("All", mock.Anything).
 				Return([]*hcloud.Server{srv}, nil).
@@ -83,7 +83,7 @@ func TestAllServersCache_InvalidateCache(t *testing.T) {
 	}
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.ServerClient.
 				On("All", mock.Anything).
 				Return([]*hcloud.Server{srv}, nil).
@@ -125,7 +125,7 @@ func TestAllServersCache_CacheRefresh(t *testing.T) {
 	}
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.ServerClient.
 				On("All", mock.Anything).
 				Return([]*hcloud.Server{srv}, nil)
@@ -161,7 +161,7 @@ func TestAllServersCache_NotFound(t *testing.T) {
 	}
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.ServerClient.
 				On("All", mock.Anything).
 				Return(nil, nil)
@@ -185,7 +185,7 @@ func TestAllServersCache_ClientError(t *testing.T) {
 	}
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.ServerClient.
 				On("All", mock.Anything).
 				Return(nil, err)
@@ -229,7 +229,7 @@ func TestAllServersCache_DuplicatePrivateIP(t *testing.T) {
 
 	cacheOps := newAllServersCacheOps(t, srv)
 	tmpl := allServersCacheTestCase{
-		SetUp: func(t *testing.T, tt *allServersCacheTestCase) {
+		SetUp: func(_ *testing.T, tt *allServersCacheTestCase) {
 			tt.Cache.Network = network
 
 			tt.ServerClient.

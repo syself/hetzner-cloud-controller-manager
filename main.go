@@ -27,7 +27,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/syself/hetzner-cloud-controller-manager/hcloud"
-	_ "github.com/syself/hetzner-cloud-controller-manager/hcloud"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"
@@ -55,7 +54,7 @@ func main() {
 
 	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, app.DefaultInitFuncConstructors, names.CCMControllerAliases(), fss, wait.NeverStop)
 
-	command.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+	command.PersistentPreRunE = func(_ *cobra.Command, _ []string) error {
 		if printVersion {
 			fmt.Println(hcloud.ProviderVersion())
 			os.Exit(0)

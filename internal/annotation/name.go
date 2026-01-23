@@ -26,23 +26,23 @@ func (s Name) AnnotateService(svc *corev1.Service, v interface{}) error {
 	const op = "annotation/Name.AnnotateService"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
 
-	if svc.ObjectMeta.Annotations == nil {
-		svc.ObjectMeta.Annotations = make(map[string]string)
+	if svc.Annotations == nil {
+		svc.Annotations = make(map[string]string)
 	}
 	k := string(s)
 	switch vt := v.(type) {
 	case bool:
-		svc.ObjectMeta.Annotations[k] = strconv.FormatBool(vt)
+		svc.Annotations[k] = strconv.FormatBool(vt)
 	case int:
-		svc.ObjectMeta.Annotations[k] = strconv.Itoa(vt)
+		svc.Annotations[k] = strconv.Itoa(vt)
 	case int64:
-		svc.ObjectMeta.Annotations[k] = strconv.FormatInt(vt, 10)
+		svc.Annotations[k] = strconv.FormatInt(vt, 10)
 	case string:
-		svc.ObjectMeta.Annotations[k] = vt
+		svc.Annotations[k] = vt
 	case []string:
-		svc.ObjectMeta.Annotations[k] = strings.Join(vt, ",")
+		svc.Annotations[k] = strings.Join(vt, ",")
 	case hcloud.CertificateType:
-		svc.ObjectMeta.Annotations[k] = string(vt)
+		svc.Annotations[k] = string(vt)
 	case []*hcloud.Certificate:
 		idsOrNames := make([]string, len(vt))
 		for i, c := range vt {
@@ -52,15 +52,15 @@ func (s Name) AnnotateService(svc *corev1.Service, v interface{}) error {
 			}
 			idsOrNames[i] = strconv.FormatInt(c.ID, 10)
 		}
-		svc.ObjectMeta.Annotations[k] = strings.Join(idsOrNames, ",")
+		svc.Annotations[k] = strings.Join(idsOrNames, ",")
 	case hcloud.NetworkZone:
-		svc.ObjectMeta.Annotations[k] = string(vt)
+		svc.Annotations[k] = string(vt)
 	case hcloud.LoadBalancerAlgorithmType:
-		svc.ObjectMeta.Annotations[k] = string(vt)
+		svc.Annotations[k] = string(vt)
 	case hcloud.LoadBalancerServiceProtocol:
-		svc.ObjectMeta.Annotations[k] = string(vt)
+		svc.Annotations[k] = string(vt)
 	case fmt.Stringer:
-		svc.ObjectMeta.Annotations[k] = vt.String()
+		svc.Annotations[k] = vt.String()
 	default:
 		return fmt.Errorf("%s: %v: unsupported type: %T", op, s, v)
 	}

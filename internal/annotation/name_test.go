@@ -87,7 +87,6 @@ func TestName_AddToService(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			err := ann.AnnotateService(&tt.svc, tt.value)
 			if tt.err != nil {
@@ -95,7 +94,7 @@ func TestName_AddToService(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, tt.svc.ObjectMeta.Annotations)
+			assert.Equal(t, tt.expected, tt.svc.Annotations)
 		})
 	}
 }
@@ -122,7 +121,6 @@ func TestName_StringFromService(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			var svc corev1.Service
 
@@ -477,7 +475,6 @@ func runAllTypedAccessorTests(
 	t.Helper()
 
 	for _, tt := range tests {
-		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			tt.run(t, call)
 		})
