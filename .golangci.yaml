@@ -48,10 +48,6 @@ linters:
       - linters:
           - unparam
         path: internal/mocks
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
 formatters:
   enable:
     - gci
