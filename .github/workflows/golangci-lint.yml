@@ -9,6 +9,8 @@ on:
 jobs:
   golangci-lint:
     runs-on: ubuntu-latest
+    env:
+      GOLANGCI_LINT_VERSION: v2.8.0
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -19,7 +21,4 @@ jobs:
           go-version-file: go.mod
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v6
-        with:
-          version: latest
-          args: ./...
+        run: ./hack/golangci-lint.sh

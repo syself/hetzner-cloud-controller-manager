@@ -27,7 +27,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 	"github.com/syself/hetzner-cloud-controller-manager/hcloud"
-	_ "github.com/syself/hetzner-cloud-controller-manager/hcloud"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/cloud-provider/app"

@@ -101,7 +101,7 @@ func (l *LoadBalancerOps) GetByK8SServiceUID(ctx context.Context, svc *corev1.Se
 
 	opts := hcloud.LoadBalancerListOpts{
 		ListOpts: hcloud.ListOpts{
-			LabelSelector: fmt.Sprintf("%s=%s", LabelServiceUID, svc.ObjectMeta.UID),
+			LabelSelector: fmt.Sprintf("%s=%s", LabelServiceUID, svc.UID),
 		},
 	}
 	lbs, err := l.LBClient.AllWithOpts(ctx, opts)
@@ -173,7 +173,7 @@ func (l *LoadBalancerOps) Create(
 		Name:             lbName,
 		LoadBalancerType: &hcloud.LoadBalancerType{Name: "lb11"},
 		Labels: map[string]string{
-			LabelServiceUID: string(svc.ObjectMeta.UID),
+			LabelServiceUID: string(svc.UID),
 		},
 	}
 	if v, ok := annotation.LBType.StringFromService(svc); ok {
@@ -332,11 +332,11 @@ func (l *LoadBalancerOps) changeHCLBInfo(ctx context.Context, lb *hcloud.LoadBal
 		opts   hcloud.LoadBalancerUpdateOpts
 	)
 
-	if lb.Labels[LabelServiceUID] != string(svc.ObjectMeta.UID) {
+	if lb.Labels[LabelServiceUID] != string(svc.UID) {
 		// Make a defensive copy of labels. This way we do not modify lb unless
 		// updating is really successful.
 		labels := make(map[string]string, len(lb.Labels)+1)
-		labels[LabelServiceUID] = string(svc.ObjectMeta.UID)
+		labels[LabelServiceUID] = string(svc.UID)
 		for k, v := range lb.Labels {
 			labels[k] = v
 		}
@@ -682,7 +682,7 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 				continue
 			}
 
-			klog.InfoS("remove target", "op", op, "service", svc.ObjectMeta.Name, "targetName", k8sNodeNames[id])
+			klog.InfoS("remove target", "op", op, "service", svc.Name, "targetName", k8sNodeNames[id])
 			// Target needs to be re-created or node currently not in use by k8s
 			// Load Balancer. Remove it from the HC Load Balancer
 			a, _, err := l.LBClient.RemoveServerTarget(ctx, lb, target.Server.Server)
@@ -704,7 +704,7 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 				continue
 			}
 
-			klog.InfoS("remove target", "op", op, "service", svc.ObjectMeta.Name, "targetName", k8sNodeNames[int64(id)])
+			klog.InfoS("remove target", "op", op, "service", svc.Name, "targetName", k8sNodeNames[int64(id)])
 			// Node currently not in use by k8s Load Balancer. Remove it from the HC Load Balancer.
 			a, _, err := l.LBClient.RemoveIPTarget(ctx, lb, net.ParseIP(ip))
 			if err != nil {
@@ -748,7 +748,7 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 			continue
 		}
 
-		klog.InfoS("add target", "op", op, "service", svc.ObjectMeta.Name, "targetName", k8sNodeNames[id])
+		klog.InfoS("add target", "op", op, "service", svc.Name, "targetName", k8sNodeNames[id])
 		opts := hcloud.LoadBalancerAddServerTargetOpts{
 			Server:       &hcloud.Server{ID: id},
 			UsePrivateIP: &usePrivateIP,
@@ -756,7 +756,7 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 		a, _, err := l.LBClient.AddServerTarget(ctx, lb, opts)
 		if err != nil {
 			if hcloud.IsError(err, hcloud.ErrorCodeResourceLimitExceeded) {
-				klog.InfoS("resource limit exceeded", "err", err.Error(), "op", op, "service", svc.ObjectMeta.Name, "targetName", k8sNodeNames[id])
+				klog.InfoS("resource limit exceeded", "err", err.Error(), "op", op, "service", svc.Name, "targetName", k8sNodeNames[id])
 				return false, nil
 			}
 			return changed, fmt.Errorf("%s: target %s: %w", op, k8sNodeNames[id], err)
@@ -804,14 +804,14 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 				continue
 			}
 
-			klog.InfoS("add target", "op", op, "service", svc.ObjectMeta.Name, "targetName", k8sNodeNames[int64(id)], "ip", ip)
+			klog.InfoS("add target", "op", op, "service", svc.Name, "targetName", k8sNodeNames[int64(id)], "ip", ip)
 			opts := hcloud.LoadBalancerAddIPTargetOpts{
 				IP: net.ParseIP(ip),
 			}
 			a, _, err := l.LBClient.AddIPTarget(ctx, lb, opts)
 			if err != nil {
 				if hcloud.IsError(err, hcloud.ErrorCodeResourceLimitExceeded) {
-					klog.InfoS("resource limit exceeded", "err", err.Error(), "op", op, "service", svc.ObjectMeta.Name, "targetName", k8sNodeNames[int64(id)])
+					klog.InfoS("resource limit exceeded", "err", err.Error(), "op", op, "service", svc.Name, "targetName", k8sNodeNames[int64(id)])
 					return false, nil
 				}
 				return changed, fmt.Errorf("%s: target %s: %w", op, k8sNodeNames[int64(id)], err)
@@ -943,14 +943,14 @@ func (l *LoadBalancerOps) reconcileManagedCertificate(ctx context.Context, svc *
 	}
 	name, ok := annotation.LBSvcHTTPManagedCertificateName.StringFromService(svc)
 	if !ok || name == "" {
-		name = fmt.Sprintf("ccm-managed-certificate-%s", svc.ObjectMeta.UID)
+		name = fmt.Sprintf("ccm-managed-certificate-%s", svc.UID)
 	}
 	domains, err := annotation.LBSvcHTTPManagedCertificateDomains.StringsFromService(svc)
 	if errors.Is(err, annotation.ErrNotSet) {
 		return fmt.Errorf("%s: no domains for managed certificate", op)
 	}
 	labels := map[string]string{
-		LabelServiceUID: string(svc.ObjectMeta.UID),
+		LabelServiceUID: string(svc.UID),
 	}
 	// It's ok to ignore the error here. We are only interested if the
 	// annotation is set and parseable as a truthy boolean. Anything else tells
@@ -1092,7 +1092,7 @@ func (b *hclbServiceOptsBuilder) extract() {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		svcUID := b.Service.ObjectMeta.UID
+		svcUID := b.Service.UID
 		cert, err := b.CertOps.GetCertificateByLabel(ctx, fmt.Sprintf("%s=%s", LabelServiceUID, svcUID))
 		if err != nil {
 			return err

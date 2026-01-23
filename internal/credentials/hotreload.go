@@ -227,7 +227,7 @@ func loadHcloudCredentials(credentialsDir string, hcloudClient *hcloud.Client) e
 func GetInitialHcloudCredentialsFromDirectory(credentialsDir string) (string, error) {
 	token, err := readHcloudCredentials(credentialsDir)
 	if err != nil {
-		return "", fmt.Errorf("Getting initial credentials: readHcloudCredentials: %w", err)
+		return "", fmt.Errorf("getting initial credentials: readHcloudCredentials: %w", err)
 	}
 
 	// Update global variable

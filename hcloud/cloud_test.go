@@ -449,10 +449,7 @@ func Test_updateHcloudCredentials(t *testing.T) {
 	err = writeCredentials(credentialsDir, token2)
 	require.NoError(t, err)
 	start := time.Now()
-	for {
-		if credentials.GetHcloudReloadCounter() > oldCounter {
-			break
-		}
+	for credentials.GetHcloudReloadCounter() <= oldCounter {
 		if time.Since(start) > time.Second*3 {
 			t.Fatal("timeout waiting for reload")
 		}

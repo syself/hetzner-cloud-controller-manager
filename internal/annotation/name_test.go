@@ -94,7 +94,7 @@ func TestName_AddToService(t *testing.T) {
 				return
 			}
 			assert.NoError(t, err)
-			assert.Equal(t, tt.expected, tt.svc.ObjectMeta.Annotations)
+			assert.Equal(t, tt.expected, tt.svc.Annotations)
 		})
 	}
 }
