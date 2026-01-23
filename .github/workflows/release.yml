@@ -27,9 +27,13 @@ jobs:
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           fetch-depth: 0
-      - uses: ./.github/actions/setup-go
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+
       - name: Set up QEMU
         uses: docker/setup-qemu-action@49b3bc8e6bdd4a60e6116a5414239cba5943d3cf # v3.2.0
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
 
@@ -57,13 +61,6 @@ jobs:
           sudo mv ./bom /usr/local/bin/bom
           sudo chmod +x /usr/local/bin/bom
 
-      - name: Setup Env
-        run: |
-          DOCKER_BUILD_LDFLAGS="$(hack/version.sh)"
-          echo 'DOCKER_BUILD_LDFLAGS<<EOF' >> $GITHUB_ENV
-          echo $DOCKER_BUILD_LDFLAGS >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
-
       - name: Build and push manager image
         uses: docker/build-push-action@4f58ea79222b3b9dc2c8bbdd6debcef730109a75 # v6.9.0
         id: docker_build_release
@@ -72,8 +69,6 @@ jobs:
           context: .
           file: ./images/hetzner-cloud-controller-manager/Dockerfile
           push: true
-          build-args: |
-            LDFLAGS=${{ env.DOCKER_BUILD_LDFLAGS }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           platforms: linux/amd64,linux/arm64

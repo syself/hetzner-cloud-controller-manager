@@ -21,9 +21,12 @@ limitations under the License.
 package main
 
 import (
+	"fmt"
 	"os"
 
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
+	"github.com/syself/hetzner-cloud-controller-manager/hcloud"
 	_ "github.com/syself/hetzner-cloud-controller-manager/hcloud"
 	"k8s.io/apimachinery/pkg/util/wait"
 	cloudprovider "k8s.io/cloud-provider"
@@ -45,7 +48,20 @@ func main() {
 	}
 
 	fss := cliflag.NamedFlagSets{}
+
+	// Add custom option, so that we can see which ccm version gets used.
+	var printVersion bool
+	fss.FlagSet("hcloud").BoolVar(&printVersion, "ccm-version", false, "Print CCM version and exit.")
+
 	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, app.DefaultInitFuncConstructors, names.CCMControllerAliases(), fss, wait.NeverStop)
+
+	command.PersistentPreRunE = func(cmd *cobra.Command, args []string) error {
+		if printVersion {
+			fmt.Println(hcloud.ProviderVersion())
+			os.Exit(0)
+		}
+		return nil
+	}
 
 	pflag.CommandLine.SetNormalizeFunc(cliflag.WordSepNormalizeFunc)
 	logs.InitLogs()

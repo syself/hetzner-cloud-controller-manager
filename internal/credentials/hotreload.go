@@ -94,7 +94,11 @@ func handleEvent(credentialsDir, baseName string, hcloudClient *hcloud.Client, r
 
 	case "hcloud", "token":
 		// This case is executed, when the process is running on a local machine.
-		return loadHcloudCredentials(credentialsDir, hcloudClient)
+		err := loadHcloudCredentials(credentialsDir, hcloudClient)
+		if err != nil {
+			return fmt.Errorf("handleEvent hcloud: %w", err)
+		}
+		return nil
 
 	case "..data":
 		// This case is executed, when the secrets are mounted in a Kubernetes pod.
@@ -103,14 +107,19 @@ func handleEvent(credentialsDir, baseName string, hcloudClient *hcloud.Client, r
 		// This means the files/symlinks don't change. When the secrets get changed, then
 		// a new ..data directory gets created. This is done by Kubernetes to make the
 		// update of all files atomic.
-		err = loadHcloudCredentials(credentialsDir, hcloudClient)
-		if err != nil {
-			return err
+		if hcloudClient != nil {
+			err = loadHcloudCredentials(credentialsDir, hcloudClient)
+			if err != nil {
+				return fmt.Errorf("handleEvent ..data loadHcloudCredentials: %w", err)
+			}
 		}
-		if robotClient == nil {
-			return nil
+		if robotClient != nil {
+			err := loadRobotCredentials(credentialsDir, robotClient)
+			if err != nil {
+				return fmt.Errorf("handleEvent ..data loadRobotCredentials: %w", err)
+			}
 		}
-		return loadRobotCredentials(credentialsDir, robotClient)
+		return nil
 
 	default:
 		klog.Infof("Ignoring fsnotify event for file %q: %s", baseName, event.String())
@@ -193,7 +202,7 @@ func loadHcloudCredentials(credentialsDir string, hcloudClient *hcloud.Client) e
 
 	token, err := readHcloudCredentials(credentialsDir)
 	if err != nil {
-		return err
+		return fmt.Errorf("loadHcloudCredentials: %w", err)
 	}
 
 	if len(token) != 64 {
@@ -219,7 +228,7 @@ func loadHcloudCredentials(credentialsDir string, hcloudClient *hcloud.Client) e
 func GetInitialHcloudCredentialsFromDirectory(credentialsDir string) (string, error) {
 	token, err := readHcloudCredentials(credentialsDir)
 	if err != nil {
-		return "", fmt.Errorf("readHcloudCredentials: %w", err)
+		return "", fmt.Errorf("Getting initial credentials: readHcloudCredentials: %w", err)
 	}
 
 	// Update global variable

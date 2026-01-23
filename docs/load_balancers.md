@@ -4,9 +4,9 @@ Load Balancer support is implemented in the Cloud Controller as of
 version v1.6.0. For using the Hetzner Cloud Load Balancers you need to
 deploy a `Service` of type `LoadBalancer`.
 
-## Sample Service:
+## Sample Service
 
-```
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
@@ -34,9 +34,34 @@ we attach the Load Balancer to the specific network automatically. You
 can specify with an annotation that the Load Balancer should use the
 private network instead of the public network.
 
-## Sample Service with Networks:
+## Proxy Protocol
 
+To enable proxy protocol on a Load Balancer service, set the
+`load-balancer.hetzner.cloud/uses-proxyprotocol` annotation to `"true"`.
+The service status then uses `ipMode: Proxy` for the Load Balancer
+ingress entries.
+
+```yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: example-service
+  annotations:
+    load-balancer.hetzner.cloud/uses-proxyprotocol: "true"
+spec:
+  type: LoadBalancer
 ```
+
+Related docs:
+
+* [Load balancer IP address
+  mode](https://kubernetes.io/docs/concepts/services-networking/service/#load-balancer-ip-mode)
+* [Kubernetes 1.29: New (alpha) Feature, Load Balancer IP Mode for
+  Services](https://kubernetes.io/blog/2023/12/18/kubernetes-1-29-feature-loadbalancer-ip-mode-alpha/)
+
+## Sample Service with Networks
+
+```yaml
 apiVersion: v1
 kind: Service
 metadata:
