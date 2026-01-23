@@ -61,9 +61,3 @@ formatters:
       sections:
         - standard
         - default
-  exclusions:
-    generated: lax
-    paths:
-      - third_party$
-      - builtin$
-      - examples$
