@@ -161,7 +161,7 @@ func loadRobotCredentials(credentialsDir string, robotClient robotclient.Client)
 		return fmt.Errorf("SetCredentials: %w", err)
 	}
 
-	klog.Infof("Hetzner Robot credentials updated to new value: %q %s...", username, password[:3])
+	klog.Infof("Hetzner Robot credentials updated to new value: %q %s...", username, password[:min(3, len(password))])
 	return nil
 }
 
@@ -220,7 +220,7 @@ func loadHcloudCredentials(credentialsDir string, hcloudClient *hcloud.Client) e
 	// Update credentials of hcloudClient
 	hcloud.WithToken(token)(hcloudClient)
 
-	klog.Infof("Hetzner Cloud token updated to new value: %s...", token[:5])
+	klog.Infof("Hetzner Cloud token updated to new value: %s...", token[:min(5, len(token))])
 	return nil
 }
 

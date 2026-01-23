@@ -140,7 +140,7 @@ func getZoneOfRobotServer(bmServer *models.Server) string {
 	if bmServer == nil {
 		panic("getZoneOfRobotServer called with nil server")
 	}
-	return strings.ToLower(bmServer.Dc[:4])
+	return strings.ToLower(bmServer.Dc[:min(4, len(bmServer.Dc))])
 }
 
 func getRegionOfRobotServer(bmServer *models.Server) string {
