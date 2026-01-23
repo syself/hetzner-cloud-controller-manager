@@ -1,4 +1,7 @@
+//revive:disable:var-naming // Package name is used throughout the codebase.
 package util
+
+//revive:enable:var-naming
 
 import (
 	"fmt"

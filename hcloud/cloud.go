@@ -117,7 +117,7 @@ func newHcloudClient(rootDir string) (*hcloud.Client, error) {
 		klog.V(1).Infof("reading Hetzner Cloud token from directory failed. Will try env var: %s", err.Error())
 		token = os.Getenv(hcloudTokenENVVar)
 		if token == "" {
-			return nil, fmt.Errorf("Either token from directory %q or environment variable %q is required", credentialsDir, hcloudTokenENVVar)
+			return nil, fmt.Errorf("either token from directory %q or environment variable %q is required", credentialsDir, hcloudTokenENVVar)
 		}
 	} else {
 		klog.V(1).Infof("reading Hetzner Cloud token from %q. The controller will reload the credentials, when the file changes", credentialsDir)

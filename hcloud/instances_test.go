@@ -37,7 +37,7 @@ import (
 func TestInstances_InstanceExists(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerGetResponse{
 			Server: schema.Server{
 				ID:   1,
@@ -45,7 +45,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 			},
 		})
 	})
-	env.Mux.HandleFunc("/servers/2", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/2", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(schema.ErrorResponse{Error: schema.Error{Code: string(hcloud.ErrorCodeNotFound)}})
@@ -58,7 +58,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 		json.NewEncoder(w).Encode(schema.ServerListResponse{Servers: servers})
 	})
 
-	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(models.ServerResponse{
 			Server: models.Server{
 				ServerIP:      "123.123.123.123",
@@ -69,13 +69,13 @@ func TestInstances_InstanceExists(t *testing.T) {
 		})
 	})
 
-	env.Mux.HandleFunc("/robot/server/322", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/robot/server/322", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(schema.ErrorResponse{Error: schema.Error{Code: string(models.ErrorCodeServerNotFound)}})
 	})
 
-	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode([]models.ServerResponse{
 			{
 				Server: models.Server{
@@ -176,7 +176,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 func TestInstances_InstanceShutdown(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerGetResponse{
 			Server: schema.Server{
 				ID:     1,
@@ -185,7 +185,7 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 			},
 		})
 	})
-	env.Mux.HandleFunc("/servers/2", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/2", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerGetResponse{
 			Server: schema.Server{
 				ID:     2,
@@ -195,7 +195,7 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 		})
 	})
 
-	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(models.ServerResponse{
 			Server: models.Server{
 				ServerIP:      "123.123.123.123",
@@ -253,7 +253,7 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 func TestInstances_InstanceMetadata(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/servers/1", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(schema.ServerGetResponse{
 			Server: schema.Server{
 				ID:         1,
@@ -300,7 +300,7 @@ func TestInstances_InstanceMetadata(t *testing.T) {
 func TestInstances_InstanceMetadataRobotServer(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
-	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, r *http.Request) {
+	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, _ *http.Request) {
 		json.NewEncoder(w).Encode(models.ServerResponse{
 			Server: models.Server{
 				ServerIP:      "123.123.123.123",

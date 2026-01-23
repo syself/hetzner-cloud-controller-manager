@@ -72,11 +72,7 @@ func Test_updateRobotCredentials(t *testing.T) {
 	err = writeCredentials(rootDir, "user2", "password2")
 	require.NoError(t, err)
 	start := time.Now()
-	for {
-		// if credentials.robotReloadCounter > oldCount {
-		if credentials.GetRobotReloadCounter() > oldCount {
-			break
-		}
+	for credentials.GetRobotReloadCounter() <= oldCount {
 		if time.Since(start) > time.Second*3 {
 			t.Fatal("timeout waiting for reload")
 		}
