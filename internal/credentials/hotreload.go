@@ -206,7 +206,7 @@ func loadHcloudCredentials(credentialsDir string, hcloudClient *hcloud.Client) e
 
 	if len(token) != 64 {
 		return fmt.Errorf("loadHcloudCredentials: entered token (%s...) is invalid (must be exactly 64 characters long)",
-			token[:5])
+			token[:min(5, len(token))])
 	}
 
 	if token == oldHcloudToken {
