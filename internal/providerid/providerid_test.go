@@ -212,6 +212,19 @@ func TestGetProviderId(t *testing.T) {
 			want:         "hrobot://321",
 		},
 		{
+			name: "annotation uses hcloud://bm-",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-node-2",
+					Annotations: map[string]string{
+						hetznerBMProviderIDPrefixAnnotation: "hcloud://bm-",
+					},
+				},
+			},
+			serverNumber: 321,
+			want:         "hcloud://bm-321",
+		},
+		{
 			name: "invalid annotation prefix",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{
