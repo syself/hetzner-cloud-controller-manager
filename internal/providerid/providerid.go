@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -19,6 +21,8 @@ const (
 	prefixRobotLegacy = "hcloud://bm-"
 
 	prefixRobotNew = "hrobot://"
+
+	hetznerBMProviderIDPrefixAnnotation = "node.cluster.x-k8s.io/hetzner-bm-provider-id-prefix"
 )
 
 type UnkownPrefixError struct {
@@ -77,7 +81,23 @@ func FromCloudServerID(serverID int64) string {
 	return fmt.Sprintf("%s%d", prefixCloud, serverID)
 }
 
-// LegacyFromRobotServerNumber generates the canonical ProviderID for a Robot Server.
-func LegacyFromRobotServerNumber(serverNumber int) string {
-	return fmt.Sprintf("%s%d", prefixRobotLegacy, serverNumber)
+func GetProviderId(node *corev1.Node, serverNumber int) (string, error) {
+	if node.Spec.ProviderID != "" {
+		return node.Spec.ProviderID, nil
+	}
+	prefix, ok := node.Annotations[hetznerBMProviderIDPrefixAnnotation]
+	if !ok {
+		prefix = prefixRobotLegacy
+	}
+	if prefix != prefixRobotLegacy && prefix != prefixRobotNew {
+		return "", fmt.Errorf(
+			"Value %q of node (%s) annotation %s is invalid. Ony %q and %q are supported",
+			prefix,
+			node.Name,
+			hetznerBMProviderIDPrefixAnnotation,
+			prefixRobotLegacy,
+			prefixRobotNew,
+		)
+	}
+	return fmt.Sprintf("%s%d", prefix, serverNumber), nil
 }

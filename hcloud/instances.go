@@ -160,11 +160,15 @@ func (i *instances) InstanceMetadata(ctx context.Context, node *corev1.Node) (me
 		return nil, fmt.Errorf("failed to get instance metadata: no matching bare metal server found for node '%s': %w",
 			node.Name, errServerNotFound)
 	}
+	providerID, err := providerid.GetProviderId(node, bmServer.ServerNumber)
+	if err != nil {
+		return nil, err
+	}
 	return &cloudprovider.InstanceMetadata{
 		// It is ok that this code (syself hetzner-ccm) returns the legacy format
 		// "hcloud://bm-NNNN". We will use the upstream hcloud-ccm in the future. Related PR for
 		// caph: https://github.com/syself/cluster-api-provider-hetzner/pull/1703
-		ProviderID:    providerid.LegacyFromRobotServerNumber(bmServer.ServerNumber),
+		ProviderID:    providerID,
 		InstanceType:  getInstanceTypeOfRobotServer(bmServer),
 		NodeAddresses: robotNodeAddresses(i.addressFamily, bmServer),
 		Zone:          getZoneOfRobotServer(bmServer),
