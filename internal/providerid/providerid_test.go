@@ -174,13 +174,13 @@ func FuzzToServerId(f *testing.F) {
 	})
 }
 
-func TestGetProviderId(t *testing.T) {
+func TestGetBaremetalProviderId(t *testing.T) {
 	tests := []struct {
-		name         string
-		node         *corev1.Node
-		serverNumber int
-		want         string
-		wantErr      bool
+		name                string
+		node                *corev1.Node
+		serverNumber        int
+		useHrobotProviderID bool
+		want                string
 	}{
 		{
 			name: "provider id already set",
@@ -191,7 +191,7 @@ func TestGetProviderId(t *testing.T) {
 			want:         "hcloud://bm-999",
 		},
 		{
-			name: "no annotation uses legacy",
+			name: "no provider id uses legacy",
 			node: &corev1.Node{
 				ObjectMeta: metav1.ObjectMeta{Name: "bm-node-1"},
 			},
@@ -199,57 +199,19 @@ func TestGetProviderId(t *testing.T) {
 			want:         "hcloud://bm-321",
 		},
 		{
-			name: "annotation uses hrobot",
+			name: "no provider id uses hrobot when enabled",
 			node: &corev1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "bm-node-2",
-					Annotations: map[string]string{
-						hetznerBMProviderIDPrefixAnnotation: "hrobot://",
-					},
-				},
+				ObjectMeta: metav1.ObjectMeta{Name: "bm-node-2"},
 			},
-			serverNumber: 321,
-			want:         "hrobot://321",
-		},
-		{
-			name: "annotation uses hcloud://bm-",
-			node: &corev1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "bm-node-2",
-					Annotations: map[string]string{
-						hetznerBMProviderIDPrefixAnnotation: "hcloud://bm-",
-					},
-				},
-			},
-			serverNumber: 321,
-			want:         "hcloud://bm-321",
-		},
-		{
-			name: "invalid annotation prefix",
-			node: &corev1.Node{
-				ObjectMeta: metav1.ObjectMeta{
-					Name: "bm-node-3",
-					Annotations: map[string]string{
-						hetznerBMProviderIDPrefixAnnotation: "bad://",
-					},
-				},
-			},
-			serverNumber: 321,
-			wantErr:      true,
+			serverNumber:        321,
+			useHrobotProviderID: true,
+			want:                "hrobot://321",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetProviderId(tt.node, tt.serverNumber)
-			if tt.wantErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
-				assert.ErrorContains(t, err, "invalid")
-				assert.ErrorContains(t, err, "hetzner-bm-provider-id-prefix")
-				return
-			}
+			got, err := GetBaremetalProviderId(tt.node, tt.serverNumber, tt.useHrobotProviderID)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}

@@ -50,7 +50,9 @@ func main() {
 
 	// Add custom option, so that we can see which ccm version gets used.
 	var printVersion bool
+	var useHrobotProviderID bool
 	fss.FlagSet("hcloud").BoolVar(&printVersion, "ccm-version", false, "Print CCM version and exit.")
+	fss.FlagSet("hcloud").BoolVar(&useHrobotProviderID, "use-hrobot-provider-id-for-baremetal", false, "Use hrobot://<id> as ProviderID for new bare metal nodes without an existing ProviderID.")
 
 	command := app.NewCloudControllerManagerCommand(ccmOptions, cloudInitializer, app.DefaultInitFuncConstructors, names.CCMControllerAliases(), fss, wait.NeverStop)
 
@@ -58,6 +60,13 @@ func main() {
 		if printVersion {
 			fmt.Println(hcloud.ProviderVersion())
 			os.Exit(0)
+		}
+		if useHrobotProviderID {
+			// This is a bit strange (setting an env var), but currently all congfiruation happens
+			// via env vars. So this flag follows this pattern.
+			if err := os.Setenv(hcloud.UseHrobotProviderIDForBaremetalEnvVar, "true"); err != nil {
+				return err
+			}
 		}
 		return nil
 	}

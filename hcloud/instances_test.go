@@ -88,7 +88,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, false)
 
 	tests := []struct {
 		name     string
@@ -206,7 +206,7 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, false)
 
 	tests := []struct {
 		name     string
@@ -272,7 +272,7 @@ func TestInstances_InstanceMetadata(t *testing.T) {
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, false)
 
 	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
 		Spec: corev1.NodeSpec{ProviderID: "hcloud://1"},
@@ -313,7 +313,7 @@ func TestInstances_InstanceMetadataRobotServer(t *testing.T) {
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, false)
 
 	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -327,6 +327,51 @@ func TestInstances_InstanceMetadataRobotServer(t *testing.T) {
 
 	expectedMetadata := &cloudprovider.InstanceMetadata{
 		ProviderID:   "hcloud://bm-321",
+		InstanceType: "bm-product-1",
+		NodeAddresses: []corev1.NodeAddress{
+			{Type: corev1.NodeHostName, Address: "bm-server1"},
+			{Type: corev1.NodeExternalIP, Address: "123.123.123.123"},
+		},
+		Zone:   "nbg1",
+		Region: "eu-central",
+	}
+
+	if !reflect.DeepEqual(metadata, expectedMetadata) {
+		t.Fatalf("Expected metadata %+v but got %+v", *expectedMetadata, *metadata)
+	}
+}
+
+func TestInstances_InstanceMetadataRobotServerUsesHrobotProviderIDFlag(t *testing.T) {
+	env := newTestEnv()
+	defer env.Teardown()
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]models.ServerResponse{
+			{
+				Server: models.Server{
+					ServerIP:      "123.123.123.123",
+					ServerIPv6Net: "2a01:f48:111:4221::",
+					ServerNumber:  321,
+					Product:       "bm-product 1",
+					Name:          "bm-server1",
+					Dc:            "NBG1-DC1",
+				},
+			},
+		})
+	})
+
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, true)
+
+	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "bm-server1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expectedMetadata := &cloudprovider.InstanceMetadata{
+		ProviderID:   "hrobot://321",
 		InstanceType: "bm-product-1",
 		NodeAddresses: []corev1.NodeAddress{
 			{Type: corev1.NodeHostName, Address: "bm-server1"},

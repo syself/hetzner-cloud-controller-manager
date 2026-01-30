@@ -21,8 +21,6 @@ const (
 	prefixRobotLegacy = "hcloud://bm-"
 
 	prefixRobotNew = "hrobot://"
-
-	hetznerBMProviderIDPrefixAnnotation = "node.cluster.x-k8s.io/hetzner-bm-provider-id-prefix"
 )
 
 type UnkownPrefixError struct {
@@ -31,9 +29,10 @@ type UnkownPrefixError struct {
 
 func (e *UnkownPrefixError) Error() string {
 	return fmt.Sprintf(
-		"Provider ID does not have one of the the expected prefixes (%s, %s): %s",
+		"Provider ID does not have one of the the expected prefixes (%s, %s, %s): %s",
 		prefixCloud,
 		prefixRobotLegacy,
+		prefixRobotNew,
 		e.ProviderID,
 	)
 }
@@ -81,23 +80,12 @@ func FromCloudServerID(serverID int64) string {
 	return fmt.Sprintf("%s%d", prefixCloud, serverID)
 }
 
-func GetProviderId(node *corev1.Node, serverNumber int) (string, error) {
+func GetBaremetalProviderId(node *corev1.Node, serverNumber int, useHrobotProviderID bool) (string, error) {
 	if node.Spec.ProviderID != "" {
 		return node.Spec.ProviderID, nil
 	}
-	prefix, ok := node.Annotations[hetznerBMProviderIDPrefixAnnotation]
-	if !ok {
-		prefix = prefixRobotLegacy
+	if useHrobotProviderID {
+		return fmt.Sprintf("%s%d", prefixRobotNew, serverNumber), nil
 	}
-	if prefix != prefixRobotLegacy && prefix != prefixRobotNew {
-		return "", fmt.Errorf(
-			"Value %q of node (%s) annotation %s is invalid. Ony %q and %q are supported",
-			prefix,
-			node.Name,
-			hetznerBMProviderIDPrefixAnnotation,
-			prefixRobotLegacy,
-			prefixRobotNew,
-		)
-	}
-	return fmt.Sprintf("%s%d", prefix, serverNumber), nil
+	return fmt.Sprintf("%s%d", prefixRobotLegacy, serverNumber), nil
 }
