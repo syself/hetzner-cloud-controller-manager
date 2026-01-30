@@ -39,16 +39,29 @@ const (
 )
 
 type instances struct {
-	client        *hcloud.Client
-	robotClient   robotclient.Client
-	addressFamily addressFamily
-	networkID     int64
+	client              *hcloud.Client
+	robotClient         robotclient.Client
+	addressFamily       addressFamily
+	networkID           int64
+	useHrobotProviderID bool
 }
 
 var errServerNotFound = fmt.Errorf("server not found")
 
-func newInstances(client *hcloud.Client, robotClient robotclient.Client, addressFamily addressFamily, networkID int64) *instances {
-	return &instances{client, robotClient, addressFamily, networkID}
+func newInstances(
+	client *hcloud.Client,
+	robotClient robotclient.Client,
+	addressFamily addressFamily,
+	networkID int64,
+	useHrobotProviderID bool,
+) *instances {
+	return &instances{
+		client:              client,
+		robotClient:         robotClient,
+		addressFamily:       addressFamily,
+		networkID:           networkID,
+		useHrobotProviderID: useHrobotProviderID,
+	}
 }
 
 // lookupServer attempts to locate the corresponding hcloud.Server or models.Server (robot server) for a given v1.Node.
@@ -160,8 +173,16 @@ func (i *instances) InstanceMetadata(ctx context.Context, node *corev1.Node) (me
 		return nil, fmt.Errorf("failed to get instance metadata: no matching bare metal server found for node '%s': %w",
 			node.Name, errServerNotFound)
 	}
+	providerID, err := providerid.GetBaremetalProviderID(node, bmServer.ServerNumber, i.useHrobotProviderID)
+	if err != nil {
+		return nil, err
+	}
 	return &cloudprovider.InstanceMetadata{
-		ProviderID:    providerid.LegacyFromRobotServerNumber(bmServer.ServerNumber),
+		// By default this returns the legacy format "hcloud://bm-NNNN". When the
+		// --use-hrobot-provider-id-for-baremetal flag is set, it returns "hrobot://NNNN".
+		// We will use the upstream hcloud-ccm in the future. Related PR for caph:
+		// https://github.com/syself/cluster-api-provider-hetzner/pull/1703
+		ProviderID:    providerID,
 		InstanceType:  getInstanceTypeOfRobotServer(bmServer),
 		NodeAddresses: robotNodeAddresses(i.addressFamily, bmServer),
 		Zone:          getZoneOfRobotServer(bmServer),

@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 func TestFromCloudServerID(t *testing.T) {
@@ -29,28 +31,6 @@ func TestFromCloudServerID(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := FromCloudServerID(tt.serverID); got != tt.want {
 				t.Errorf("FromCloudServerID() = %v, want %v", got, tt.want)
-			}
-		})
-	}
-}
-
-func TestFromRobotServerNumber(t *testing.T) {
-	tests := []struct {
-		name         string
-		serverNumber int
-		want         string
-	}{
-		{
-			name:         "simple id",
-			serverNumber: 4321,
-			want:         "hcloud://bm-4321",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			if got := LegacyFromRobotServerNumber(tt.serverNumber); got != tt.want {
-				t.Errorf("FromRobotServerNumber() = %v, want %v", got, tt.want)
 			}
 		})
 	}
@@ -93,8 +73,15 @@ func TestToServerID(t *testing.T) {
 			wantErr:           errors.New("providerID is missing a serverID: hcloud://"),
 		},
 		{
-			name:              "[robot-syself] simple id",
+			name:              "[robot-syself] simple id (legacy)",
 			providerID:        "hcloud://bm-4321",
+			wantID:            4321,
+			wantIsCloudServer: false,
+			wantErr:           nil,
+		},
+		{
+			name:              "[robot-syself] simple id (new)",
+			providerID:        "hrobot://4321",
 			wantID:            4321,
 			wantIsCloudServer: false,
 			wantErr:           nil,
@@ -165,24 +152,6 @@ func FuzzRoundTripCloud(f *testing.F) {
 	})
 }
 
-func FuzzRoundTripRobot(f *testing.F) {
-	f.Add(123123123)
-
-	f.Fuzz(func(t *testing.T, serverNumber int) {
-		providerID := LegacyFromRobotServerNumber(serverNumber)
-		id, isCloudServer, err := ToServerID(providerID)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if int(id) != serverNumber {
-			t.Fatalf("expected %d, got %d", serverNumber, id)
-		}
-		if isCloudServer {
-			t.Fatalf("expected %t, got %t", false, isCloudServer)
-		}
-	})
-}
-
 func FuzzToServerId(f *testing.F) {
 	f.Add("hcloud://123123123")
 	f.Add("hcloud://bm-123123123")
@@ -203,4 +172,52 @@ func FuzzToServerId(f *testing.F) {
 			t.Fatal(err)
 		}
 	})
+}
+
+func TestGetBaremetalProviderID(t *testing.T) {
+	tests := []struct {
+		name                string
+		node                *corev1.Node
+		serverNumber        int
+		useHrobotProviderID bool
+		want                string
+	}{
+		{
+			name: "provider id already set",
+			node: &corev1.Node{
+				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-999"},
+			},
+			serverNumber: 321,
+			want:         "hcloud://bm-999",
+		},
+		{
+			name: "no provider id uses legacy",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "bm-node-1"},
+			},
+			serverNumber: 321,
+			want:         "hcloud://bm-321",
+		},
+		{
+			name: "no provider id uses hrobot when enabled",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: "bm-node-2"},
+			},
+			serverNumber:        321,
+			useHrobotProviderID: true,
+			want:                "hrobot://321",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := GetBaremetalProviderID(tt.node, tt.serverNumber, tt.useHrobotProviderID)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			if got != tt.want {
+				t.Fatalf("expected %q, got %q", tt.want, got)
+			}
+		})
+	}
 }

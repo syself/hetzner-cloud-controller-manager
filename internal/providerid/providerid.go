@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	corev1 "k8s.io/api/core/v1"
 )
 
 const (
@@ -17,6 +19,8 @@ const (
 	//
 	// It MUST not be changed, otherwise existing nodes will not be recognized anymore.
 	prefixRobotLegacy = "hcloud://bm-"
+
+	prefixRobotNew = "hrobot://"
 )
 
 type UnkownPrefixError struct {
@@ -25,9 +29,10 @@ type UnkownPrefixError struct {
 
 func (e *UnkownPrefixError) Error() string {
 	return fmt.Sprintf(
-		"Provider ID does not have one of the the expected prefixes (%s, %s): %s",
+		"Provider ID does not have one of the the expected prefixes (%s, %s, %s): %s",
 		prefixCloud,
 		prefixRobotLegacy,
+		prefixRobotNew,
 		e.ProviderID,
 	)
 }
@@ -40,6 +45,9 @@ func (e *UnkownPrefixError) Error() string {
 func ToServerID(providerID string) (id int64, isCloudServer bool, err error) {
 	idString := ""
 	switch {
+	case strings.HasPrefix(providerID, prefixRobotNew):
+		idString = strings.ReplaceAll(providerID, prefixRobotNew, "")
+
 	case strings.HasPrefix(providerID, prefixRobotLegacy):
 		// This case needs to be before [prefixCloud], as [prefixCloud] is a superset of [prefixRobotLegacy]
 		idString = strings.ReplaceAll(providerID, prefixRobotLegacy, "")
@@ -68,7 +76,14 @@ func FromCloudServerID(serverID int64) string {
 	return fmt.Sprintf("%s%d", prefixCloud, serverID)
 }
 
-// LegacyFromRobotServerNumber generates the canonical ProviderID for a Robot Server.
-func LegacyFromRobotServerNumber(serverNumber int) string {
-	return fmt.Sprintf("%s%d", prefixRobotLegacy, serverNumber)
+// GetBaremetalProviderID creates a ProviderID for baremetal servers. Depending on the
+// configuration, it is either hcloud://bm-NNNN or hrobot://NNNN.
+func GetBaremetalProviderID(node *corev1.Node, serverNumber int, useHrobotProviderID bool) (string, error) {
+	if node.Spec.ProviderID != "" {
+		return node.Spec.ProviderID, nil
+	}
+	if useHrobotProviderID {
+		return fmt.Sprintf("%s%d", prefixRobotNew, serverNumber), nil
+	}
+	return fmt.Sprintf("%s%d", prefixRobotLegacy, serverNumber), nil
 }

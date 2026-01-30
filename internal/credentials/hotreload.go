@@ -1,6 +1,7 @@
 package credentials
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -91,7 +92,7 @@ func handleEvent(credentialsDir, baseName string, hcloudClient *hcloud.Client, r
 		// This case is executed, when the process is running on a local machine.
 		return loadRobotCredentials(credentialsDir, robotClient)
 
-	case "hcloud":
+	case "hcloud", "token":
 		// This case is executed, when the process is running on a local machine.
 		err := loadHcloudCredentials(credentialsDir, hcloudClient)
 		if err != nil {
@@ -237,12 +238,19 @@ func GetInitialHcloudCredentialsFromDirectory(credentialsDir string) (string, er
 }
 
 func readHcloudCredentials(credentialsDir string) (string, error) {
-	hcloudTokenFile := filepath.Join(credentialsDir, "hcloud")
-	data, err := os.ReadFile(hcloudTokenFile)
-	if err != nil {
-		return "", fmt.Errorf("reading hcloud token from %q failed: %w", hcloudTokenFile, err)
+	var allErrors []error
+	for _, key := range []string{"hcloud", "token"} {
+		// upstream hcloud ccm expects by default the key "token" in the secret. To ease migration
+		// (back and forward), we support that, too.
+		hcloudTokenFile := filepath.Join(credentialsDir, key)
+		data, err := os.ReadFile(hcloudTokenFile)
+		if err != nil {
+			allErrors = append(allErrors, fmt.Errorf("reading hcloud token from %q failed: %w", hcloudTokenFile, err))
+			continue
+		}
+		return strings.TrimSpace(string(data)), nil
 	}
-	return strings.TrimSpace(string(data)), nil
+	return "", errors.Join(allErrors...)
 }
 
 // GetDirectory returns the directory where the credentials are stored.
