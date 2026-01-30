@@ -240,7 +240,7 @@ func GetInitialHcloudCredentialsFromDirectory(credentialsDir string) (string, er
 func readHcloudCredentials(credentialsDir string) (string, error) {
 	var allErrors []error
 	for _, key := range []string{"hcloud", "token"} {
-		// upstream hcloud ccm expects by defaul the key "token" in the secret. To ease migration
+		// upstream hcloud ccm expects by default the key "token" in the secret. To ease migration
 		// (back and forward), we support that, too.
 		hcloudTokenFile := filepath.Join(credentialsDir, key)
 		data, err := os.ReadFile(hcloudTokenFile)

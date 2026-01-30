@@ -46,10 +46,6 @@ func ToServerID(providerID string) (id int64, isCloudServer bool, err error) {
 	idString := ""
 	switch {
 	case strings.HasPrefix(providerID, prefixRobotNew):
-		// If a cluster switched from old-syself-ccm to upstream-hcloud-ccm, and then back again to
-		// old-syself-ccm, then there might be nodes with the new format. Let's support this
-		// edge-case, but in the long run the upstream-hcloud-ccm should be used. Related:
-		// https://github.com/syself/cluster-api-provider-hetzner/pull/1703
 		idString = strings.ReplaceAll(providerID, prefixRobotNew, "")
 
 	case strings.HasPrefix(providerID, prefixRobotLegacy):
