@@ -76,6 +76,8 @@ func FromCloudServerID(serverID int64) string {
 	return fmt.Sprintf("%s%d", prefixCloud, serverID)
 }
 
+// GetBaremetalProviderId creates a ProviderID for baremetal servers. Depending on the
+// configuration, it is either hcloud://bm-NNNN or hrobot://NNNN.
 func GetBaremetalProviderId(node *corev1.Node, serverNumber int, useHrobotProviderID bool) (string, error) {
 	if node.Spec.ProviderID != "" {
 		return node.Spec.ProviderID, nil
