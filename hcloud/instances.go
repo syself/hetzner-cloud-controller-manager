@@ -173,7 +173,7 @@ func (i *instances) InstanceMetadata(ctx context.Context, node *corev1.Node) (me
 		return nil, fmt.Errorf("failed to get instance metadata: no matching bare metal server found for node '%s': %w",
 			node.Name, errServerNotFound)
 	}
-	providerID, err := providerid.GetBaremetalProviderId(node, bmServer.ServerNumber, i.useHrobotProviderID)
+	providerID, err := providerid.GetBaremetalProviderID(node, bmServer.ServerNumber, i.useHrobotProviderID)
 	if err != nil {
 		return nil, err
 	}

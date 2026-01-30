@@ -174,7 +174,7 @@ func FuzzToServerId(f *testing.F) {
 	})
 }
 
-func TestGetBaremetalProviderId(t *testing.T) {
+func TestGetBaremetalProviderID(t *testing.T) {
 	tests := []struct {
 		name                string
 		node                *corev1.Node
@@ -211,7 +211,7 @@ func TestGetBaremetalProviderId(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := GetBaremetalProviderId(tt.node, tt.serverNumber, tt.useHrobotProviderID)
+			got, err := GetBaremetalProviderID(tt.node, tt.serverNumber, tt.useHrobotProviderID)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
