@@ -62,8 +62,8 @@ func main() {
 			os.Exit(0)
 		}
 		if useHrobotProviderID {
-			// This is a bit strange (setting an env var), but currently all congfiruation happens
-			// via env vars. So this flag follows this pattern.
+			// This is a bit strange (setting an env var), but currently all config happens via env
+			// vars. So this flag follows this pattern.
 			if err := os.Setenv(hcloud.UseHrobotProviderIDForBaremetalEnvVar, "true"); err != nil {
 				return err
 			}
