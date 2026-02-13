@@ -147,6 +147,35 @@ func TestLoadBalancers_GetLoadBalancer(t *testing.T) {
 			},
 		},
 		{
+			Name:       "get load balancer with hostname does not set ipMode",
+			ServiceUID: "2-hostname-no-ipmode",
+			LB: &hcloud.LoadBalancer{
+				ID:   11,
+				Name: "hostname-lb",
+				PublicNet: hcloud.LoadBalancerPublicNet{
+					IPv4: hcloud.LoadBalancerPublicNetIPv4{IP: net.ParseIP("1.2.3.4")},
+					IPv6: hcloud.LoadBalancerPublicNetIPv6{IP: net.ParseIP("fe80::1")},
+				},
+			},
+			Mock: func(_ *testing.T, tt *LoadBalancerTestCase) {
+				tt.LBOps.
+					On("GetByK8SServiceUID", tt.Ctx, tt.Service).
+					Return(tt.LB, nil)
+			},
+			ServiceAnnotations: map[annotation.Name]interface{}{
+				annotation.LBHostname: "lb.example.com",
+			},
+			Perform: func(t *testing.T, tt *LoadBalancerTestCase) {
+				status, exists, err := tt.LoadBalancers.GetLoadBalancer(tt.Ctx, tt.ClusterName, tt.Service)
+				require.NoError(t, err)
+				require.True(t, exists)
+				require.Len(t, status.Ingress, 1)
+				assert.Equal(t, "lb.example.com", status.Ingress[0].Hostname)
+				assert.Empty(t, status.Ingress[0].IP, "IP should not be set when using hostname")
+				assert.Nil(t, status.Ingress[0].IPMode, "ipMode must be nil when using hostname (no IP)")
+			},
+		},
+		{
 			Name:       "load balancer not found",
 			ServiceUID: "3",
 			Mock: func(_ *testing.T, tt *LoadBalancerTestCase) {
@@ -404,6 +433,36 @@ func TestLoadBalancers_EnsureLoadBalancer_CreateLoadBalancer(t *testing.T) {
 				lbStat, err := tt.LoadBalancers.EnsureLoadBalancer(tt.Ctx, tt.ClusterName, tt.Service, tt.Nodes)
 				assert.NoError(t, err)
 				assert.Equal(t, expected, lbStat)
+			},
+		},
+		{
+			Name:       "hostname annotation does not set ipMode",
+			ServiceUID: "7",
+			ServiceAnnotations: map[annotation.Name]interface{}{
+				annotation.LBName:     "hostname-lb",
+				annotation.LBHostname: "lb.example.com",
+			},
+			LB: &hcloud.LoadBalancer{
+				ID:               7,
+				Name:             "hostname-lb",
+				LoadBalancerType: &hcloud.LoadBalancerType{Name: "lb11"},
+				Location:         &hcloud.Location{Name: "nbg1", NetworkZone: hcloud.NetworkZoneEUCentral},
+				PublicNet: hcloud.LoadBalancerPublicNet{
+					Enabled: true,
+					IPv4:    hcloud.LoadBalancerPublicNetIPv4{IP: net.ParseIP("1.2.3.4")},
+					IPv6:    hcloud.LoadBalancerPublicNetIPv6{IP: net.ParseIP("fe80::1")},
+				},
+			},
+			Mock: func(_ *testing.T, tt *LoadBalancerTestCase) {
+				setupSuccessMocks(tt, "hostname-lb")
+			},
+			Perform: func(t *testing.T, tt *LoadBalancerTestCase) {
+				lbStat, err := tt.LoadBalancers.EnsureLoadBalancer(tt.Ctx, tt.ClusterName, tt.Service, tt.Nodes)
+				require.NoError(t, err)
+				require.Len(t, lbStat.Ingress, 1)
+				assert.Equal(t, "lb.example.com", lbStat.Ingress[0].Hostname)
+				assert.Empty(t, lbStat.Ingress[0].IP, "IP should not be set when using hostname")
+				assert.Nil(t, lbStat.Ingress[0].IPMode, "ipMode must be nil when using hostname (no IP)")
 			},
 		},
 		{

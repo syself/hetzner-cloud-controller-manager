@@ -200,10 +200,7 @@ func (l *loadBalancers) getLBStatus(lb *hcloud.LoadBalancer, service *corev1.Ser
 	// See: https://github.com/kubernetes/kubernetes/issues/66607
 	if v, ok := annotation.LBHostname.StringFromService(service); ok {
 		return &corev1.LoadBalancerStatus{
-			Ingress: []corev1.LoadBalancerIngress{{
-				Hostname: v,
-				IPMode:   &ipMode,
-			}},
+			Ingress: []corev1.LoadBalancerIngress{{Hostname: v}},
 		}, nil
 	}
 
