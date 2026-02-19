@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/legacydatacenter"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/providerid"
 	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
@@ -165,8 +166,8 @@ func (i *instances) InstanceMetadata(ctx context.Context, node *corev1.Node) (me
 			ProviderID:    providerid.FromCloudServerID(hcloudServer.ID),
 			InstanceType:  hcloudServer.ServerType.Name,
 			NodeAddresses: hcloudNodeAddresses(i.addressFamily, i.networkID, hcloudServer),
-			Zone:          hcloudServer.Datacenter.Name,
-			Region:        hcloudServer.Datacenter.Location.Name,
+			Zone:          legacydatacenter.NameFromLocation(hcloudServer.Location.Name),
+			Region:        hcloudServer.Location.Name,
 		}, nil
 	}
 	if bmServer == nil {
