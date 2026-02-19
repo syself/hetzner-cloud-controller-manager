@@ -183,7 +183,6 @@ func TestCloud(t *testing.T) {
 						RescueEnabled:   false,
 						ISO:             nil,
 						Locked:          false,
-						Datacenter:      &schema.Datacenter{},
 						Image:           nil,
 						Protection:      schema.ServerProtection{},
 						Labels:          nil,

@@ -259,7 +259,9 @@ func TestInstances_InstanceMetadata(t *testing.T) {
 				ID:         1,
 				Name:       "foobar",
 				ServerType: schema.ServerType{Name: "asdf11"},
-				Datacenter: &schema.Datacenter{Name: "Test DC", Location: schema.Location{Name: "Test Location"}},
+				Location: schema.Location{
+					Name: "Test Location",
+				},
 				PublicNet: schema.ServerPublicNet{
 					IPv6: schema.ServerPublicNetIPv6{
 						IP: "2001:db8:1234::/64",
