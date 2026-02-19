@@ -26,6 +26,7 @@ import (
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/schema"
+	"github.com/stretchr/testify/require"
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -259,7 +260,7 @@ func TestInstances_InstanceMetadata(t *testing.T) {
 				ID:         1,
 				Name:       "foobar",
 				ServerType: schema.ServerType{Name: "asdf11"},
-				Datacenter: schema.Datacenter{Name: "Test DC", Location: schema.Location{Name: "Test Location"}},
+				Datacenter: &schema.Datacenter{Name: "Test DC", Location: schema.Location{Name: "Test Location"}},
 				PublicNet: schema.ServerPublicNet{
 					IPv6: schema.ServerPublicNetIPv6{
 						IP: "2001:db8:1234::/64",
