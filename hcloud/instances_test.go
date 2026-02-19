@@ -290,7 +290,7 @@ func TestInstances_InstanceMetadata(t *testing.T) {
 			{Type: corev1.NodeHostName, Address: "foobar"},
 			{Type: corev1.NodeExternalIP, Address: "203.0.113.7"},
 		},
-		Zone:   "Test DC",
+		Zone:   "Test Location",
 		Region: "Test Location",
 	}
 

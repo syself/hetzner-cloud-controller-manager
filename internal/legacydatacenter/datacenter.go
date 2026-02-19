@@ -17,8 +17,6 @@ func NameFromLocation(location string) string {
 		return "hil-dc1"
 	case "sin":
 		return "sin-dc1"
-	case "Test Location":
-		return "Test DC"
 	default:
 		return location
 	}
