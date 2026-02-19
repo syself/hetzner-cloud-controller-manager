@@ -153,8 +153,8 @@ func (i *instances) InstanceMetadata(ctx context.Context, node *corev1.Node) (me
 			ProviderID:    providerid.FromCloudServerID(hcloudServer.ID),
 			InstanceType:  hcloudServer.ServerType.Name,
 			NodeAddresses: hcloudNodeAddresses(i.addressFamily, i.networkID, hcloudServer),
-			Zone:          legacydatacenter.NameFromLocation(hcloudServer.Datacenter.Location.Name),
-			Region:        hcloudServer.Datacenter.Location.Name,
+			Zone:          legacydatacenter.NameFromLocation(hcloudServer.Location.Name),
+			Region:        hcloudServer.Location.Name,
 		}, nil
 	}
 	if bmServer == nil {
