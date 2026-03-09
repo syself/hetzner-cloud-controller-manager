@@ -69,12 +69,16 @@ See [CAPH docs](https://syself.com/docs/caph/topics/baremetal/creating-workload-
 
 ## Usage
 
-We recommend to mount the secret `hetzner` as volume and make it avaiable for the container as
+We recommend to mount the secret `hetzner` as volume and make it available for the container as
 `/etc/hetzner-secret`. Then the credentials are automatically reloaded, when the secret changes.
 When you use the hot-reloading, be sure that the keys in the secret use these names: "hcloud" (for
 the HCLOUD_TOKEN), "robot-user" and "robot-password". For compatibility with the upstream hcloud-ccm
 we support the key "token" instead of "hcloud". You see an example in the [ccm helm
-chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner)
+chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner).
+
+For bare-metal nodes without an existing ProviderID, you can switch to `hrobot://<id>` via
+`--use-hrobot-provider-id-for-baremetal` (or
+`HCLOUD_USE_HROBOT_PROVIDER_ID_FOR_BAREMETAL=true`).
 
 ## Env Variables
 
@@ -83,6 +87,9 @@ ROBOT_DEBUG: When set to `true`, then api calls to the hetzner robot API will be
 CACHE_TIMEOUT: Timeout of the Robot API Cache. See [ParseDuration](https://pkg.go.dev/time#ParseDuration) for supported syntax.
 
 HCLOUD_ENDPOINT: Defaults to `https://api.hetzner.cloud/v1`
+
+HCLOUD_USE_HROBOT_PROVIDER_ID_FOR_BAREMETAL: When set to `true`, newly initialized bare-metal
+nodes use `hrobot://<id>` instead of `hcloud://bm-<id>`.
 
 Additional Env Variables are defined at the top of [cloud.go](https://github.com/syself/hetzner-cloud-controller-manager/blob/master/hcloud/cloud.go)
 

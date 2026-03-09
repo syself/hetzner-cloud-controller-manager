@@ -111,6 +111,15 @@ func TestInstances_InstanceExists(t *testing.T) {
 			},
 			expected: true,
 		}, {
+			name: "existing robot server by id (hrobot)",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-server1",
+				},
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://321"},
+			},
+			expected: true,
+		}, {
 			name: "missing server by id",
 			node: &corev1.Node{
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://2"},
@@ -123,6 +132,15 @@ func TestInstances_InstanceExists(t *testing.T) {
 					Name: "bm-server2",
 				},
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-322"},
+			},
+			expected: false,
+		}, {
+			name: "missing robot server by id (hrobot)",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-server2",
+				},
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://322"},
 			},
 			expected: false,
 		}, {
@@ -229,6 +247,15 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 			name: "bm server",
 			node: &corev1.Node{
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-321"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-server1",
+				},
+			},
+			expected: false,
+		}, {
+			name: "bm server (hrobot)",
+			node: &corev1.Node{
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://321"},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "bm-server1",
 				},
