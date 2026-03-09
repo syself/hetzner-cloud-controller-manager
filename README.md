@@ -69,17 +69,12 @@ See [CAPH docs](https://syself.com/docs/caph/topics/baremetal/creating-workload-
 
 ## Usage
 
-We recommend to mount the secret `hetzner` as volume and make it available for the container as `/etc/hetzner-secret`.
-Then the credentials are automatically reloaded, when the secret changes.
-When you use hot-reloading, the secret keys must be named `hcloud` (or `token`, for upstream hcloud-ccm compatibility), `robot-user`, and `robot-password`.
-You see an example in the [ccm helm chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner)
-
 We recommend to mount the secret `hetzner` as volume and make it available for the container as
 `/etc/hetzner-secret`. Then the credentials are automatically reloaded, when the secret changes.
-When you use the hot-reloading, be sure that the keys in the secret use these names: "hcloud" (for
-the HCLOUD_TOKEN), "robot-user" and "robot-password". For compatibility with the upstream hcloud-ccm
-we support the key "token" instead of "hcloud". You see an example in the [ccm helm
-chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner).
+
+When you use hot-reloading, the secret keys must be named `hcloud` (or `token`, for upstream
+hcloud-ccm compatibility), `robot-user`, and `robot-password`. You see an example in the [ccm helm
+chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner)
 
 For bare-metal nodes without an existing ProviderID, you can switch to `hrobot://<id>` via
 `--use-hrobot-provider-id-for-baremetal` (or
