@@ -85,6 +85,45 @@ func Test_updateRobotCredentials(t *testing.T) {
 	require.Len(t, servers, 1)
 }
 
+func TestRememberMissingServerNameExpires(t *testing.T) {
+	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
+	client := &cacheRobotClient{
+		now: func() time.Time { return now },
+	}
+
+	client.RememberMissingServerName("bm-missing")
+	require.True(t, client.HasMissingServerName("bm-missing"))
+
+	now = now.Add(defaultMissingServerNameTTL - time.Second)
+	require.True(t, client.HasMissingServerName("bm-missing"))
+
+	now = now.Add(2 * time.Second)
+	require.False(t, client.HasMissingServerName("bm-missing"))
+	require.Empty(t, client.missingServerNames)
+}
+
+func TestRememberMissingServerNameRefreshesExpiry(t *testing.T) {
+	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
+	client := &cacheRobotClient{
+		now: func() time.Time { return now },
+	}
+
+	client.RememberMissingServerName("bm-missing")
+	firstExpiry := client.missingServerNames["bm-missing"]
+
+	now = now.Add(2 * time.Minute)
+	client.RememberMissingServerName("bm-missing")
+	secondExpiry := client.missingServerNames["bm-missing"]
+
+	require.True(t, secondExpiry.After(firstExpiry))
+
+	now = now.Add(4 * time.Minute)
+	require.True(t, client.HasMissingServerName("bm-missing"))
+
+	now = secondExpiry.Add(time.Second)
+	require.False(t, client.HasMissingServerName("bm-missing"))
+}
+
 func writeCredentials(rootDir, user, password string) error {
 	credentialsDir := credentials.GetDirectory(rootDir)
 	newDir := filepath.Join(credentialsDir, "..dataNew")

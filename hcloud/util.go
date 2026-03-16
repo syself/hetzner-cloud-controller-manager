@@ -37,12 +37,12 @@ type robotServerListForceRefreshClient interface {
 	// bypassing the normal cache timeout.
 	ServerGetListForceRefresh() ([]models.Server, error)
 
-	// HasMissingServerName reports whether name was already missing in the
-	// current cache generation.
+	// HasMissingServerName reports whether name is still cached as a recent miss
+	// and should skip another forced refresh for now.
 	HasMissingServerName(name string) bool
 
-	// RememberMissingServerName records name as missing until the cache is
-	// refreshed again.
+	// RememberMissingServerName records name as missing until its miss-cache
+	// entry expires.
 	RememberMissingServerName(name string)
 }
 

@@ -18,6 +18,11 @@ const (
 	robotUserNameENVVar = "ROBOT_USER_NAME"
 	robotPasswordENVVar = "ROBOT_PASSWORD"
 	cacheTimeoutENVVar  = "CACHE_TIMEOUT"
+
+	// We don't want to remember a node name for ever. Imagine a bm machine with constant hostname
+	// gets provisioned twice. Then we want the second time to work like the first: The cache of
+	// Robot servers should be updated via ServerGetListForceRefresh().
+	defaultMissingServerNameTTL = 5 * time.Minute
 )
 
 var _ robotclient.Client = &cacheRobotClient{}
@@ -27,11 +32,12 @@ type cacheRobotClient struct {
 	timeout     time.Duration
 
 	lastUpdate time.Time
+	now        func() time.Time
 
 	// cache
 	l                  []models.Server
 	m                  map[int]*models.Server
-	missingServerNames []string
+	missingServerNames map[string]time.Time
 }
 
 // NewCachedRobotClient creates a new robot client with caching enabled.
@@ -86,6 +92,7 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 	handler := &cacheRobotClient{}
 	handler.timeout = cacheTimeout
 	handler.robotClient = c
+	handler.now = time.Now
 	return handler, nil
 }
 
@@ -106,7 +113,7 @@ func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
 		}
 
 		// set time of last update
-		c.lastUpdate = time.Now()
+		c.lastUpdate = c.currentTime()
 		c.missingServerNames = nil
 	}
 
@@ -136,7 +143,7 @@ func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 		}
 
 		// set time of last update
-		c.lastUpdate = time.Now()
+		c.lastUpdate = c.currentTime()
 		c.missingServerNames = nil
 	}
 
@@ -149,27 +156,30 @@ func (c *cacheRobotClient) ServerGetListForceRefresh() ([]models.Server, error) 
 	return c.ServerGetList()
 }
 
-// HasMissingServerName reports whether name was already missing in the
-// currently cached Robot server list.
+// HasMissingServerName reports whether name is still cached as a recent miss.
 func (c *cacheRobotClient) HasMissingServerName(name string) bool {
-	for _, missingName := range c.missingServerNames {
-		if missingName == name {
-			return true
-		}
+	if c.missingServerNames == nil {
+		return false
 	}
-	return false
+
+	expiresAt, found := c.missingServerNames[name]
+	if !found {
+		return false
+	}
+	if c.currentTime().After(expiresAt) {
+		delete(c.missingServerNames, name)
+		return false
+	}
+	return true
 }
 
-// RememberMissingServerName stores name in the bounded list of cache misses for
-// the current cache generation.
+// RememberMissingServerName stores name in the cache of recent misses until its
+// expiration time is reached.
 func (c *cacheRobotClient) RememberMissingServerName(name string) {
-	if c.HasMissingServerName(name) {
-		return
+	if c.missingServerNames == nil {
+		c.missingServerNames = make(map[string]time.Time)
 	}
-	c.missingServerNames = append(c.missingServerNames, name)
-	if len(c.missingServerNames) > 1000 {
-		c.missingServerNames = c.missingServerNames[len(c.missingServerNames)-1000:]
-	}
+	c.missingServerNames[name] = c.currentTime().Add(defaultMissingServerNameTTL)
 }
 
 func (c *cacheRobotClient) shouldSync() bool {
@@ -178,10 +188,17 @@ func (c *cacheRobotClient) shouldSync() bool {
 		c.m = make(map[int]*models.Server)
 		return true
 	}
-	if time.Now().After(c.lastUpdate.Add(c.timeout)) {
+	if c.currentTime().After(c.lastUpdate.Add(c.timeout)) {
 		return true
 	}
 	return false
+}
+
+func (c *cacheRobotClient) currentTime() time.Time {
+	if c.now == nil {
+		return time.Now()
+	}
+	return c.now()
 }
 
 func (c *cacheRobotClient) SetCredentials(username, password string) error {
