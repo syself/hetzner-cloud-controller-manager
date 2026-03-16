@@ -71,13 +71,18 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	for i, s := range serverList {
-		if s.Name == node.Name {
-			server = &serverList[i]
-		}
+	server = findRobotServerByName(serverList, string(node.Name))
+	if server != nil {
+		return server, nil
 	}
 
-	return server, nil
+	serverList, err = c.ServerGetListForceRefresh()
+	if err != nil {
+		hcops.HandleRateLimitExceededError(err, node)
+		return nil, fmt.Errorf("%s: force refresh after cache miss: %w", op, err)
+	}
+
+	return findRobotServerByName(serverList, string(node.Name)), nil
 }
 
 func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *models.Server, e error) {
@@ -114,6 +119,15 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *mod
 
 	// return nil, nil if server could not be found
 	return server, nil
+}
+
+func findRobotServerByName(serverList []models.Server, name string) *models.Server {
+	for i, s := range serverList {
+		if s.Name == name {
+			return &serverList[i]
+		}
+	}
+	return nil
 }
 
 func isHCloudServerByName(name string) bool {

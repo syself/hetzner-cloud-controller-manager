@@ -90,22 +90,9 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 
 func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
 	if c.shouldSync() {
-		list, err := c.robotClient.ServerGetList()
-		if err != nil {
+		if _, err := c.sync(); err != nil {
 			return nil, err
 		}
-
-		// populate list
-		c.l = list
-
-		// remove all entries from map and populate it freshly
-		c.m = make(map[int]*models.Server)
-		for i, server := range list {
-			c.m[server.ServerNumber] = &list[i]
-		}
-
-		// set time of last update
-		c.lastUpdate = time.Now()
 	}
 
 	server, found := c.m[id]
@@ -119,25 +106,15 @@ func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
 
 func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 	if c.shouldSync() {
-		list, err := c.robotClient.ServerGetList()
-		if err != nil {
-			return list, err
-		}
-
-		// populate list
-		c.l = list
-
-		// remove all entries from map and populate it freshly
-		c.m = make(map[int]*models.Server)
-		for i, server := range list {
-			c.m[server.ServerNumber] = &list[i]
-		}
-
-		// set time of last update
-		c.lastUpdate = time.Now()
+		return c.sync()
 	}
 
 	return c.l, nil
+}
+
+// ServerGetListForceRefresh bypasses the timeout check and reloads the cache from Robot.
+func (c *cacheRobotClient) ServerGetListForceRefresh() ([]models.Server, error) {
+	return c.sync()
 }
 
 func (c *cacheRobotClient) shouldSync() bool {
@@ -160,4 +137,25 @@ func (c *cacheRobotClient) SetCredentials(username, password string) error {
 	// The credentials have been updated, so we need to invalidate the cache.
 	c.m = nil
 	return nil
+}
+
+func (c *cacheRobotClient) sync() ([]models.Server, error) {
+	list, err := c.robotClient.ServerGetList()
+	if err != nil {
+		return list, err
+	}
+
+	// populate list
+	c.l = list
+
+	// remove all entries from map and repopulate it from the current list
+	c.m = make(map[int]*models.Server)
+	for i, server := range list {
+		c.m[server.ServerNumber] = &list[i]
+	}
+
+	// set time of last update
+	c.lastUpdate = time.Now()
+
+	return c.l, nil
 }
