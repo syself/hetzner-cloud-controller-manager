@@ -112,6 +112,8 @@ func (i *instances) lookupServer(
 	return hcloudServer, bmServer, isHCloudServer, nil
 }
 
+// trackRobotServerMiss remembers repeated misses for young bare-metal nodes and
+// emits a warning on the second miss to surface unexpected stale-cache behavior.
 func (i *instances) trackRobotServerMiss(node *corev1.Node, bmServer *models.Server) {
 	if node == nil || node.Name == "" {
 		return
