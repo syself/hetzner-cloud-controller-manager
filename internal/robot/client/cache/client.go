@@ -90,9 +90,22 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 
 func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
 	if c.shouldSync() {
-		if _, err := c.ServerGetListForceRefresh(); err != nil {
+		list, err := c.robotClient.ServerGetList()
+		if err != nil {
 			return nil, err
 		}
+
+		// populate list
+		c.l = list
+
+		// remove all entries from map and populate it freshly
+		c.m = make(map[int]*models.Server)
+		for i, server := range list {
+			c.m[server.ServerNumber] = &list[i]
+		}
+
+		// set time of last update
+		c.lastUpdate = time.Now()
 	}
 
 	server, found := c.m[id]
@@ -106,32 +119,31 @@ func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
 
 func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 	if c.shouldSync() {
-		return c.ServerGetListForceRefresh()
+		list, err := c.robotClient.ServerGetList()
+		if err != nil {
+			return list, err
+		}
+
+		// populate list
+		c.l = list
+
+		// remove all entries from map and populate it freshly
+		c.m = make(map[int]*models.Server)
+		for i, server := range list {
+			c.m[server.ServerNumber] = &list[i]
+		}
+
+		// set time of last update
+		c.lastUpdate = time.Now()
 	}
 
 	return c.l, nil
 }
 
-// ServerGetListForceRefresh bypasses the timeout check and reloads the cache from Robot.
+// ServerGetListForceRefresh invalidates the current cache and reloads the list from Robot.
 func (c *cacheRobotClient) ServerGetListForceRefresh() ([]models.Server, error) {
-	list, err := c.robotClient.ServerGetList()
-	if err != nil {
-		return list, err
-	}
-
-	// populate list
-	c.l = list
-
-	// remove all entries from map and repopulate it from the current list
-	c.m = make(map[int]*models.Server)
-	for i, server := range list {
-		c.m[server.ServerNumber] = &list[i]
-	}
-
-	// set time of last update
-	c.lastUpdate = time.Now()
-
-	return c.l, nil
+	c.m = nil
+	return c.ServerGetList()
 }
 
 func (c *cacheRobotClient) shouldSync() bool {

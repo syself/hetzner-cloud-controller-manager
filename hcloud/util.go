@@ -30,6 +30,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+// robotServerListForceRefreshClient is implemented by Robot clients that can
+// bypass their cache timeout and reload the server list immediately.
 type robotServerListForceRefreshClient interface {
 	ServerGetListForceRefresh() ([]models.Server, error)
 }
@@ -81,6 +83,7 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		}
 	}
 
+	// Only the cached Robot client can bypass its timeout and reload immediately.
 	forceRefreshClient, ok := c.(robotServerListForceRefreshClient)
 	if !ok {
 		return nil, nil
