@@ -17,8 +17,41 @@ limitations under the License.
 package hcloud
 
 import (
+	"encoding/json"
+	"errors"
+	"net/http"
 	"testing"
+
+	"github.com/stretchr/testify/require"
+	"github.com/syself/hrobot-go/models"
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
+
+func TestGetRobotServerByNameReturnsNotFound(t *testing.T) {
+	env := newTestEnv()
+	defer env.Teardown()
+
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]models.ServerResponse{
+			{
+				Server: models.Server{
+					ServerNumber: 321,
+					Name:         "bm-server1",
+				},
+			},
+		})
+	})
+
+	server, err := getRobotServerByName(env.RobotClient, &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "bm-server2"},
+	})
+	require.Nil(t, server)
+	require.Error(t, err)
+	var apiErr models.Error
+	require.True(t, errors.As(err, &apiErr))
+	require.Equal(t, models.ErrorCodeServerNotFound, apiErr.Code)
+}
 
 func Test_stringToLabelValue(t *testing.T) {
 	tests := []struct {

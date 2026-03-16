@@ -73,11 +73,11 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 
 	for i, s := range serverList {
 		if s.Name == node.Name {
-			server = &serverList[i]
+			return &serverList[i], nil
 		}
 	}
 
-	return server, nil
+	return nil, fmt.Errorf("%s: %w", op, models.Error{Code: models.ErrorCodeServerNotFound, Message: "server not found"})
 }
 
 func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *models.Server, e error) {

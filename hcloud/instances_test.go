@@ -94,6 +94,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 		name     string
 		node     *corev1.Node
 		expected bool
+		wantErr  bool
 	}{
 		{
 			name: "existing server by id",
@@ -156,13 +157,19 @@ func TestInstances_InstanceExists(t *testing.T) {
 					Name: "bm-barfoo",
 				},
 			},
-			expected: false,
+			wantErr: true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			exists, err := instances.InstanceExists(context.TODO(), test.node)
+			if test.wantErr {
+				if err == nil {
+					t.Fatal("Expected error but got nil")
+				}
+				return
+			}
 			if err != nil {
 				t.Fatalf("Unexpected error: %v", err)
 			}
