@@ -86,6 +86,7 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 	// Only the cached Robot client can bypass its timeout and reload immediately.
 	forceRefreshClient, ok := c.(robotServerListForceRefreshClient)
 	if !ok {
+		// robot Client does not support force refresh
 		return nil, nil
 	}
 
@@ -97,10 +98,12 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 
 	for i, s := range serverList {
 		if s.Name == node.Name {
+			// Server was found after cache refresh
 			return &serverList[i], nil
 		}
 	}
 
+	// No server found.
 	return nil, nil
 }
 
