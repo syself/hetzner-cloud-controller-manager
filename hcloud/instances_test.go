@@ -190,14 +190,13 @@ func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) 
 	defer resetEnv()
 
 	// servers backs the Robot list response and is mutated during the test.
-	servers := []models.Server{
-		{
-			ServerIP:      "123.123.123.123",
-			ServerIPv6Net: "2a01:f48:111:4221::",
-			ServerNumber:  321,
-			Name:          "bm-existing",
-		},
-	}
+	servers := make([]models.Server, 0, 2)
+	servers = append(servers, models.Server{
+		ServerIP:      "123.123.123.123",
+		ServerIPv6Net: "2a01:f48:111:4221::",
+		ServerNumber:  321,
+		Name:          "bm-existing",
+	})
 	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
 		responses := make([]models.ServerResponse, 0, len(servers))
 		for _, server := range servers {
