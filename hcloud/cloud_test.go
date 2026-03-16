@@ -34,6 +34,7 @@ import (
 	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/credentials"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
+	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	hrobot "github.com/syself/hrobot-go"
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
@@ -44,7 +45,15 @@ type testEnv struct {
 	Server      *httptest.Server
 	Mux         *http.ServeMux
 	Client      *hcloud.Client
-	RobotClient hrobot.RobotClient
+	RobotClient robotclient.Client
+}
+
+type testRobotClient struct {
+	hrobot.RobotClient
+}
+
+func (c testRobotClient) ServerGetListForceRefresh() ([]models.Server, error) {
+	return c.ServerGetList()
 }
 
 func (env *testEnv) Teardown() {
@@ -70,7 +79,7 @@ func newTestEnv() testEnv {
 		Server:      server,
 		Mux:         mux,
 		Client:      client,
-		RobotClient: robotClient,
+		RobotClient: testRobotClient{RobotClient: robotClient},
 	}
 }
 
