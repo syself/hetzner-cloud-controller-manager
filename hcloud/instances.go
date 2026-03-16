@@ -106,15 +106,15 @@ func (i *instances) lookupServer(
 			if err != nil {
 				return nil, nil, false, fmt.Errorf("failed to get robot server %q: %w", string(node.Name), err)
 			}
-			i.trackRobotServerMiss(node, bmServer)
+			i.trackRobotServerByNameMiss(node, bmServer)
 		}
 	}
 	return hcloudServer, bmServer, isHCloudServer, nil
 }
 
-// trackRobotServerMiss remembers repeated misses for young bare-metal nodes and
+// trackRobotServerByNameMiss remembers repeated misses for young bare-metal nodes and
 // emits a warning on the second miss to surface unexpected stale-cache behavior.
-func (i *instances) trackRobotServerMiss(node *corev1.Node, bmServer *models.Server) {
+func (i *instances) trackRobotServerByNameMiss(node *corev1.Node, bmServer *models.Server) {
 	if node == nil || node.Name == "" {
 		return
 	}
@@ -128,7 +128,9 @@ func (i *instances) trackRobotServerMiss(node *corev1.Node, bmServer *models.Ser
 	}
 
 	i.robotMissByName[string(node.Name)]++
-	logRepeatedYoungNodeRobotMiss(string(node.Name), i.robotMissByName[string(node.Name)])
+	if i.robotMissByName[string(node.Name)] == 2 {
+		klog.Warningf("young node %q still missing in robot after %d lookup misses", node.Name, i.robotMissByName[string(node.Name)])
+	}
 }
 
 func (i *instances) InstanceExists(ctx context.Context, node *corev1.Node) (bool, error) {

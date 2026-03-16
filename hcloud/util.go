@@ -29,7 +29,6 @@ import (
 	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/klog/v2"
 )
 
 // youngRobotServerLookupWindow limits forced Robot refreshes to newly created nodes.
@@ -141,14 +140,6 @@ func isYoungNode(node *corev1.Node) bool {
 	}
 
 	return time.Since(node.CreationTimestamp.Time) <= youngRobotServerLookupWindow
-}
-
-func logRepeatedYoungNodeRobotMiss(nodeName string, missCount int) {
-	if missCount != 2 {
-		return
-	}
-
-	klog.Warningf("young node %q still missing in robot after %d lookup misses", nodeName, missCount)
 }
 
 func isHCloudServerByName(name string) bool {
