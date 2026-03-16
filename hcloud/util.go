@@ -30,6 +30,10 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
+type robotServerListForceRefreshClient interface {
+	ServerGetListForceRefresh() ([]models.Server, error)
+}
+
 func getHCloudServerByName(ctx context.Context, c *hcloud.Client, name string) (*hcloud.Server, error) {
 	const op = "hcloud/getServerByName"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
@@ -77,7 +81,12 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		}
 	}
 
-	serverList, err = c.ServerGetListForceRefresh()
+	forceRefreshClient, ok := c.(robotServerListForceRefreshClient)
+	if !ok {
+		return nil, nil
+	}
+
+	serverList, err = forceRefreshClient.ServerGetListForceRefresh()
 	if err != nil {
 		hcops.HandleRateLimitExceededError(err, node)
 		return nil, fmt.Errorf("%s: force refresh after cache miss: %w", op, err)

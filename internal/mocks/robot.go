@@ -14,10 +14,6 @@ func (m *RobotClient) ServerGetList() ([]models.Server, error) {
 	return getRobotServers(args, 0), args.Error(1)
 }
 
-func (m *RobotClient) ServerGetListForceRefresh() ([]models.Server, error) {
-	return m.ServerGetList()
-}
-
 func (m *RobotClient) SetCredentials(_, _ string) error {
 	args := m.Called()
 	return args.Error(3)
