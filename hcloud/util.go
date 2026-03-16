@@ -33,8 +33,16 @@ import (
 // robotServerListForceRefreshClient is implemented by Robot clients that can
 // bypass their cache timeout and remember names missing in the current cache.
 type robotServerListForceRefreshClient interface {
+	// ServerGetListForceRefresh reloads the Robot server list immediately,
+	// bypassing the normal cache timeout.
 	ServerGetListForceRefresh() ([]models.Server, error)
+
+	// HasMissingServerName reports whether name was already missing in the
+	// current cache generation.
 	HasMissingServerName(name string) bool
+
+	// RememberMissingServerName records name as missing until the cache is
+	// refreshed again.
 	RememberMissingServerName(name string)
 }
 
@@ -91,7 +99,9 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		// robot Client does not support force refresh
 		return nil, nil
 	}
+
 	if forceRefreshClient.HasMissingServerName(string(node.Name)) {
+		// This node name already triggerd a force refresh. Don't refresh again.
 		return nil, nil
 	}
 
@@ -108,8 +118,10 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		}
 	}
 
-	// No server found.
+	// Remember this node name, so that it does not trigger a cache refresh again.
 	forceRefreshClient.RememberMissingServerName(string(node.Name))
+
+	// No server found.
 	return nil, nil
 }
 

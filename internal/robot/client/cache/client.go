@@ -149,6 +149,8 @@ func (c *cacheRobotClient) ServerGetListForceRefresh() ([]models.Server, error) 
 	return c.ServerGetList()
 }
 
+// HasMissingServerName reports whether name was already missing in the
+// currently cached Robot server list.
 func (c *cacheRobotClient) HasMissingServerName(name string) bool {
 	for _, missingName := range c.missingServerNames {
 		if missingName == name {
@@ -158,6 +160,8 @@ func (c *cacheRobotClient) HasMissingServerName(name string) bool {
 	return false
 }
 
+// RememberMissingServerName stores name in the bounded list of cache misses for
+// the current cache generation.
 func (c *cacheRobotClient) RememberMissingServerName(name string) {
 	if c.HasMissingServerName(name) {
 		return
