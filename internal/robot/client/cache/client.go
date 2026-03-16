@@ -148,7 +148,7 @@ func (c *cacheRobotClient) sync() ([]models.Server, error) {
 	// populate list
 	c.l = list
 
-	// remove all entries from map and populate it freshly
+	// remove all entries from map and repopulate it from the current list
 	c.m = make(map[int]*models.Server)
 	for i, server := range list {
 		c.m[server.ServerNumber] = &list[i]

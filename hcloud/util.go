@@ -35,7 +35,7 @@ import (
 // youngRobotServerLookupWindow limits forced Robot refreshes to newly created nodes.
 var youngRobotServerLookupWindow = 10 * time.Minute
 
-type robotServerListFreshClient interface {
+type robotServerListForceRefreshClient interface {
 	ServerGetListForceRefresh() ([]models.Server, error)
 }
 
@@ -85,12 +85,12 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		return server, nil
 	}
 
-	freshClient, ok := c.(robotServerListFreshClient)
+	forceRefreshClient, ok := c.(robotServerListForceRefreshClient)
 	if !ok {
 		return nil, nil
 	}
 
-	serverList, err = freshClient.ServerGetListForceRefresh()
+	serverList, err = forceRefreshClient.ServerGetListForceRefresh()
 	if err != nil {
 		hcops.HandleRateLimitExceededError(err, node)
 		return nil, fmt.Errorf("%s: refresh for young node: %w", op, err)
