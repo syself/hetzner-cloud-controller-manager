@@ -19,6 +19,7 @@ package hcloud
 import (
 	"context"
 	"fmt"
+	"sync"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/legacydatacenter"
@@ -44,12 +45,21 @@ type instances struct {
 	robotClient   robotclient.Client
 	addressFamily addressFamily
 	networkID     int64
+
+	robotMissMu      sync.Mutex
+	robotMissByName  map[string]int
 }
 
 var errServerNotFound = fmt.Errorf("server not found")
 
 func newInstances(client *hcloud.Client, robotClient robotclient.Client, addressFamily addressFamily, networkID int64) *instances {
-	return &instances{client, robotClient, addressFamily, networkID}
+	return &instances{
+		client:         client,
+		robotClient:    robotClient,
+		addressFamily:  addressFamily,
+		networkID:      networkID,
+		robotMissByName: make(map[string]int),
+	}
 }
 
 // lookupServer attempts to locate the corresponding hcloud.Server or models.Server (robot server) for a given v1.Node.
@@ -95,9 +105,27 @@ func (i *instances) lookupServer(
 			if err != nil {
 				return nil, nil, false, fmt.Errorf("failed to get robot server %q: %w", string(node.Name), err)
 			}
+			i.trackRobotServerMiss(node, bmServer)
 		}
 	}
 	return hcloudServer, bmServer, isHCloudServer, nil
+}
+
+func (i *instances) trackRobotServerMiss(node *corev1.Node, bmServer *models.Server) {
+	if node == nil || node.Name == "" {
+		return
+	}
+
+	i.robotMissMu.Lock()
+	defer i.robotMissMu.Unlock()
+
+	if bmServer != nil || !isYoungNode(node) {
+		delete(i.robotMissByName, string(node.Name))
+		return
+	}
+
+	i.robotMissByName[string(node.Name)]++
+	logRepeatedYoungNodeRobotMiss(string(node.Name), i.robotMissByName[string(node.Name)])
 }
 
 func (i *instances) InstanceExists(ctx context.Context, node *corev1.Node) (bool, error) {

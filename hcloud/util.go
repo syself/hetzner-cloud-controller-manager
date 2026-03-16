@@ -21,6 +21,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
@@ -28,7 +29,14 @@ import (
 	robotclient "github.com/syself/hetzner-cloud-controller-manager/internal/robot/client"
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/klog/v2"
 )
+
+var youngRobotServerLookupWindow = 10 * time.Minute
+
+type robotServerListFreshClient interface {
+	ServerGetListFresh() ([]models.Server, error)
+}
 
 func getHCloudServerByName(ctx context.Context, c *hcloud.Client, name string) (*hcloud.Server, error) {
 	const op = "hcloud/getServerByName"
@@ -71,13 +79,23 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 
-	for i, s := range serverList {
-		if s.Name == node.Name {
-			server = &serverList[i]
-		}
+	server = findRobotServerByName(serverList, string(node.Name))
+	if server != nil || !isYoungNode(node) {
+		return server, nil
 	}
 
-	return server, nil
+	freshClient, ok := c.(robotServerListFreshClient)
+	if !ok {
+		return nil, nil
+	}
+
+	serverList, err = freshClient.ServerGetListFresh()
+	if err != nil {
+		hcops.HandleRateLimitExceededError(err, node)
+		return nil, fmt.Errorf("%s: refresh for young node: %w", op, err)
+	}
+
+	return findRobotServerByName(serverList, string(node.Name)), nil
 }
 
 func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *models.Server, e error) {
@@ -114,6 +132,31 @@ func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *mod
 
 	// return nil, nil if server could not be found
 	return server, nil
+}
+
+func findRobotServerByName(serverList []models.Server, name string) *models.Server {
+	for i, s := range serverList {
+		if s.Name == name {
+			return &serverList[i]
+		}
+	}
+	return nil
+}
+
+func isYoungNode(node *corev1.Node) bool {
+	if node == nil || node.CreationTimestamp.IsZero() {
+		return false
+	}
+
+	return time.Since(node.CreationTimestamp.Time) <= youngRobotServerLookupWindow
+}
+
+func logRepeatedYoungNodeRobotMiss(nodeName string, missCount int) {
+	if missCount != 2 {
+		return
+	}
+
+	klog.Warningf("young node %q still missing in robot after %d lookup misses", nodeName, missCount)
 }
 
 func isHCloudServerByName(name string) bool {

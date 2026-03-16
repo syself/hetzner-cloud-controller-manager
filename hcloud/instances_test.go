@@ -17,19 +17,24 @@ limitations under the License.
 package hcloud
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"net"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/schema"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/robot/client/cache"
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	cloudprovider "k8s.io/cloud-provider"
+	"k8s.io/klog/v2"
 )
 
 // TestInstances_InstanceExists also tests [lookupServer]. The other tests
@@ -170,6 +175,145 @@ func TestInstances_InstanceExists(t *testing.T) {
 				t.Fatalf("Expected server to exist %v but got %v", test.expected, exists)
 			}
 		})
+	}
+}
+
+func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) {
+	env := newTestEnv()
+	defer env.Teardown()
+
+	resetEnv := Setenv(t,
+		"ROBOT_USER_NAME", "user",
+		"ROBOT_PASSWORD", "pass",
+		"CACHE_TIMEOUT", "1h",
+	)
+	defer resetEnv()
+
+	servers := []models.Server{
+		{
+			ServerIP:      "123.123.123.123",
+			ServerIPv6Net: "2a01:f48:111:4221::",
+			ServerNumber:  321,
+			Name:          "bm-existing",
+		},
+	}
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
+		responses := make([]models.ServerResponse, 0, len(servers))
+		for _, server := range servers {
+			responses = append(responses, models.ServerResponse{Server: server})
+		}
+		json.NewEncoder(w).Encode(responses)
+	})
+
+	robotClient, err := cache.NewCachedRobotClient(t.TempDir(), env.Server.Client(), env.Server.URL+"/robot")
+	if err != nil {
+		t.Fatalf("Unexpected error creating cached robot client: %v", err)
+	}
+
+	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+	creationTime := metav1.NewTime(time.Now())
+
+	// Warm the cache while bm-new does not exist yet.
+	exists, err := instances.InstanceExists(context.TODO(), &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "bm-existing",
+			CreationTimestamp: creationTime,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error warming cache: %v", err)
+	}
+	if !exists {
+		t.Fatal("Expected bm-existing to exist")
+	}
+
+	servers = append(servers, models.Server{
+		ServerIP:      "123.123.123.124",
+		ServerIPv6Net: "2a01:f48:111:4222::",
+		ServerNumber:  322,
+		Name:          "bm-new",
+	})
+
+	exists, err = instances.InstanceExists(context.TODO(), &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "bm-new",
+			CreationTimestamp: creationTime,
+		},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error for bm-new: %v", err)
+	}
+	if !exists {
+		t.Fatal("Expected bm-new to exist after it was created")
+	}
+}
+
+func TestInstances_InstanceExistsRobotServerLogsSecondYoungNodeMiss(t *testing.T) {
+	env := newTestEnv()
+	defer env.Teardown()
+
+	resetEnv := Setenv(t,
+		"ROBOT_USER_NAME", "user",
+		"ROBOT_PASSWORD", "pass",
+		"CACHE_TIMEOUT", "1h",
+	)
+	defer resetEnv()
+
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]models.ServerResponse{
+			{
+				Server: models.Server{
+					ServerIP:      "123.123.123.123",
+					ServerIPv6Net: "2a01:f48:111:4221::",
+					ServerNumber:  321,
+					Name:          "bm-existing",
+				},
+			},
+		})
+	})
+
+	robotClient, err := cache.NewCachedRobotClient(t.TempDir(), env.Server.Client(), env.Server.URL+"/robot")
+	if err != nil {
+		t.Fatalf("Unexpected error creating cached robot client: %v", err)
+	}
+
+	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              "bm-new",
+			CreationTimestamp: metav1.NewTime(time.Now()),
+		},
+	}
+
+	state := klog.CaptureState()
+	defer state.Restore()
+
+	var logs bytes.Buffer
+	klog.LogToStderr(false)
+	klog.SetOutput(&logs)
+
+	exists, err := instances.InstanceExists(context.TODO(), node)
+	if err != nil {
+		t.Fatalf("Unexpected error on first miss: %v", err)
+	}
+	if exists {
+		t.Fatal("Expected bm-new to be missing on first lookup")
+	}
+	klog.Flush()
+	if strings.Contains(logs.String(), "still missing in robot") {
+		t.Fatal("Did not expect warning log on first miss")
+	}
+
+	exists, err = instances.InstanceExists(context.TODO(), node)
+	if err != nil {
+		t.Fatalf("Unexpected error on second miss: %v", err)
+	}
+	if exists {
+		t.Fatal("Expected bm-new to be missing on second lookup")
+	}
+	klog.Flush()
+	if !strings.Contains(logs.String(), `young node "bm-new" still missing in robot after 2 lookup misses`) {
+		t.Fatalf("Expected warning log after second miss, got %q", logs.String())
 	}
 }
 
