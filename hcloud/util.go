@@ -31,9 +31,11 @@ import (
 )
 
 // robotServerListForceRefreshClient is implemented by Robot clients that can
-// bypass their cache timeout and reload the server list immediately.
+// bypass their cache timeout and remember names missing in the current cache.
 type robotServerListForceRefreshClient interface {
 	ServerGetListForceRefresh() ([]models.Server, error)
+	HasMissingServerName(name string) bool
+	RememberMissingServerName(name string)
 }
 
 func getHCloudServerByName(ctx context.Context, c *hcloud.Client, name string) (*hcloud.Server, error) {
@@ -89,6 +91,9 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		// robot Client does not support force refresh
 		return nil, nil
 	}
+	if forceRefreshClient.HasMissingServerName(string(node.Name)) {
+		return nil, nil
+	}
 
 	serverList, err = forceRefreshClient.ServerGetListForceRefresh()
 	if err != nil {
@@ -104,6 +109,7 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 	}
 
 	// No server found.
+	forceRefreshClient.RememberMissingServerName(string(node.Name))
 	return nil, nil
 }
 

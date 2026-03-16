@@ -29,8 +29,9 @@ type cacheRobotClient struct {
 	lastUpdate time.Time
 
 	// cache
-	l []models.Server
-	m map[int]*models.Server
+	l                  []models.Server
+	m                  map[int]*models.Server
+	missingServerNames []string
 }
 
 // NewCachedRobotClient creates a new robot client with caching enabled.
@@ -106,6 +107,7 @@ func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
 
 		// set time of last update
 		c.lastUpdate = time.Now()
+		c.missingServerNames = nil
 	}
 
 	server, found := c.m[id]
@@ -135,6 +137,7 @@ func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 
 		// set time of last update
 		c.lastUpdate = time.Now()
+		c.missingServerNames = nil
 	}
 
 	return c.l, nil
@@ -144,6 +147,25 @@ func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 func (c *cacheRobotClient) ServerGetListForceRefresh() ([]models.Server, error) {
 	c.m = nil
 	return c.ServerGetList()
+}
+
+func (c *cacheRobotClient) HasMissingServerName(name string) bool {
+	for _, missingName := range c.missingServerNames {
+		if missingName == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (c *cacheRobotClient) RememberMissingServerName(name string) {
+	if c.HasMissingServerName(name) {
+		return
+	}
+	c.missingServerNames = append(c.missingServerNames, name)
+	if len(c.missingServerNames) > 1000 {
+		c.missingServerNames = c.missingServerNames[len(c.missingServerNames)-1000:]
+	}
 }
 
 func (c *cacheRobotClient) shouldSync() bool {
@@ -165,5 +187,6 @@ func (c *cacheRobotClient) SetCredentials(username, password string) error {
 	}
 	// The credentials have been updated, so we need to invalidate the cache.
 	c.m = nil
+	c.missingServerNames = nil
 	return nil
 }

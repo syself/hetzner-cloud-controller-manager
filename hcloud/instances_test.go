@@ -237,6 +237,65 @@ func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) 
 	}
 }
 
+func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsForceRefresh(t *testing.T) {
+	env := newTestEnv()
+	defer env.Teardown()
+
+	resetEnv := Setenv(t,
+		"ROBOT_USER_NAME", "user",
+		"ROBOT_PASSWORD", "pass",
+		"CACHE_TIMEOUT", "1h",
+	)
+	defer resetEnv()
+
+	robotServerListCalls := 0
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
+		robotServerListCalls++
+		json.NewEncoder(w).Encode([]models.ServerResponse{
+			{
+				Server: models.Server{
+					ServerIP:      "123.123.123.123",
+					ServerIPv6Net: "2a01:f48:111:4221::",
+					ServerNumber:  321,
+					Name:          "bm-existing",
+				},
+			},
+		})
+	})
+
+	robotClient, err := cache.NewCachedRobotClient(t.TempDir(), env.Server.Client(), env.Server.URL+"/robot")
+	if err != nil {
+		t.Fatalf("Unexpected error creating cached robot client: %v", err)
+	}
+
+	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "bm-missing"},
+	}
+
+	exists, err := instances.InstanceExists(context.TODO(), node)
+	if err != nil {
+		t.Fatalf("Unexpected error on first miss: %v", err)
+	}
+	if exists {
+		t.Fatal("Expected bm-missing to be absent on first lookup")
+	}
+	if robotServerListCalls != 2 {
+		t.Fatalf("Expected 2 Robot list calls after first miss, got %d", robotServerListCalls)
+	}
+
+	exists, err = instances.InstanceExists(context.TODO(), node)
+	if err != nil {
+		t.Fatalf("Unexpected error on second miss: %v", err)
+	}
+	if exists {
+		t.Fatal("Expected bm-missing to be absent on second lookup")
+	}
+	if robotServerListCalls != 2 {
+		t.Fatalf("Expected repeated miss to skip force refresh, got %d Robot list calls", robotServerListCalls)
+	}
+}
+
 func TestInstances_InstanceShutdown(t *testing.T) {
 	env := newTestEnv()
 	defer env.Teardown()
