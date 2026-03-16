@@ -49,12 +49,7 @@ type instances struct {
 var errServerNotFound = fmt.Errorf("server not found")
 
 func newInstances(client *hcloud.Client, robotClient robotclient.Client, addressFamily addressFamily, networkID int64) *instances {
-	return &instances{
-		client:        client,
-		robotClient:   robotClient,
-		addressFamily: addressFamily,
-		networkID:     networkID,
-	}
+	return &instances{client, robotClient, addressFamily, networkID}
 }
 
 // lookupServer attempts to locate the corresponding hcloud.Server or models.Server (robot server) for a given v1.Node.
