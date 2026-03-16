@@ -46,18 +46,19 @@ type instances struct {
 	addressFamily addressFamily
 	networkID     int64
 
-	robotMissMu      sync.Mutex
-	robotMissByName  map[string]int
+	robotMissMu sync.Mutex
+	// robotMissByName counts repeated misses for young bare-metal nodes by name.
+	robotMissByName map[string]int
 }
 
 var errServerNotFound = fmt.Errorf("server not found")
 
 func newInstances(client *hcloud.Client, robotClient robotclient.Client, addressFamily addressFamily, networkID int64) *instances {
 	return &instances{
-		client:         client,
-		robotClient:    robotClient,
-		addressFamily:  addressFamily,
-		networkID:      networkID,
+		client:          client,
+		robotClient:     robotClient,
+		addressFamily:   addressFamily,
+		networkID:       networkID,
 		robotMissByName: make(map[string]int),
 	}
 }

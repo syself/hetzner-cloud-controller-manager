@@ -112,7 +112,8 @@ func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 	return c.l, nil
 }
 
-func (c *cacheRobotClient) ServerGetListFresh() ([]models.Server, error) {
+// ServerGetListForceRefresh bypasses the timeout check and reloads the cache from Robot.
+func (c *cacheRobotClient) ServerGetListForceRefresh() ([]models.Server, error) {
 	return c.sync()
 }
 

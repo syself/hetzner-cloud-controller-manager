@@ -189,6 +189,7 @@ func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) 
 	)
 	defer resetEnv()
 
+	// servers backs the Robot list response and is mutated during the test.
 	servers := []models.Server{
 		{
 			ServerIP:      "123.123.123.123",
@@ -211,6 +212,7 @@ func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) 
 	}
 
 	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+	// creationTime keeps the test nodes inside the young-node refresh window.
 	creationTime := metav1.NewTime(time.Now())
 
 	// Warm the cache while bm-new does not exist yet.
@@ -288,6 +290,7 @@ func TestInstances_InstanceExistsRobotServerLogsSecondYoungNodeMiss(t *testing.T
 	state := klog.CaptureState()
 	defer state.Restore()
 
+	// logs captures klog output so the warning can be asserted directly.
 	var logs bytes.Buffer
 	klog.LogToStderr(false)
 	klog.SetOutput(&logs)

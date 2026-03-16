@@ -32,10 +32,11 @@ import (
 	"k8s.io/klog/v2"
 )
 
+// youngRobotServerLookupWindow limits forced Robot refreshes to newly created nodes.
 var youngRobotServerLookupWindow = 10 * time.Minute
 
 type robotServerListFreshClient interface {
-	ServerGetListFresh() ([]models.Server, error)
+	ServerGetListForceRefresh() ([]models.Server, error)
 }
 
 func getHCloudServerByName(ctx context.Context, c *hcloud.Client, name string) (*hcloud.Server, error) {
@@ -89,7 +90,7 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		return nil, nil
 	}
 
-	serverList, err = freshClient.ServerGetListFresh()
+	serverList, err = freshClient.ServerGetListForceRefresh()
 	if err != nil {
 		hcops.HandleRateLimitExceededError(err, node)
 		return nil, fmt.Errorf("%s: refresh for young node: %w", op, err)
