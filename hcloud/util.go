@@ -95,15 +95,15 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		return nil, fmt.Errorf("%s: force refresh after cache miss: %w", op, err)
 	}
 
+	// Remember this node name, so that it does not trigger a cache refresh again.
+	c.NodeTriggeredForcedRefresh(string(node.Name))
+
 	for i, s := range serverList {
 		if s.Name == node.Name {
 			// Server was found after cache refresh
 			return &serverList[i], nil
 		}
 	}
-
-	// Remember this node name, so that it does not trigger a cache refresh again.
-	c.NodeTriggeredForcedRefresh(string(node.Name))
 
 	// No server found.
 	return nil, nil
