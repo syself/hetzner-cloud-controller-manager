@@ -33,10 +33,10 @@ type cacheRobotClient struct {
 	// cache
 	l []models.Server
 	m map[int]*models.Server
-	// forcedRefreshServerNames stores when a node name last triggered a forced
-	// Robot server list refresh. While that timestamp is still within the cache
-	// timeout window, repeated lookups for the same missing name skip the extra
-	// uncached Robot API call.
+
+	// forcedRefreshServerNames stores when a node name last triggered a forced Robot server list
+	// refresh. While that timestamp is still within the cache timeout window, repeated lookups for
+	// the same missing server name skip the extra uncached Robot API call.
 	forcedRefreshServerNames map[string]time.Time
 }
 
