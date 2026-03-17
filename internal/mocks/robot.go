@@ -19,10 +19,13 @@ func (m *RobotClient) ServerGetListForceRefresh() ([]models.Server, error) {
 }
 
 func (m *RobotClient) NodeHasAlreadyForcedRefresh(nodeName string) bool {
+	_ = nodeName
 	return false
 }
 
-func (m *RobotClient) NodeTriggeredForcedRefresh(nodeName string) {}
+func (m *RobotClient) NodeTriggeredForcedRefresh(nodeName string) {
+	_ = nodeName
+}
 
 func (m *RobotClient) SetCredentials(_, _ string) error {
 	args := m.Called()

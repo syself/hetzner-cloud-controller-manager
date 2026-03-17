@@ -28,9 +28,12 @@ func (a *adapter) ServerGetListForceRefresh() ([]models.Server, error) {
 // NodeHasAlreadyForcedRefresh always reports false for plain Robot clients because
 // they do not track forced-refresh state.
 func (a *adapter) NodeHasAlreadyForcedRefresh(nodeName string) bool {
+	_ = nodeName
 	return false
 }
 
 // NodeTriggeredForcedRefresh is a no-op for plain Robot clients because they do
 // not cache forced-refresh state.
-func (a *adapter) NodeTriggeredForcedRefresh(nodeName string) {}
+func (a *adapter) NodeTriggeredForcedRefresh(nodeName string) {
+	_ = nodeName
+}
