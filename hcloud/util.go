@@ -77,13 +77,10 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		}
 	}
 
-	// CAPH can create the bare-metal server first and only update the Kubernetes
-	// Node name afterwards. During that short window the Robot list cache can
-	// still hold the old server name, so a name lookup would incorrectly conclude
-	// that the server disappeared and the node could be deleted immediately.
-	// Force one uncached Robot list reload for that name to bridge the rename,
-	// then suppress repeated forced refreshes for the same missing name until the
-	// normal Robot list cache timeout has elapsed.
+	// CAPH changes the Robot server name during provisioning. This means the cache of the
+	// server-name-to-server-ID mapping could be outdated. Force one uncached Robot list reload for
+	// that name to bridge the rename, then suppress repeated forced refreshes for the same missing
+	// name until the normal Robot list cache timeout has elapsed.
 	if c.NodeHasAlreadyForcedRefresh(string(node.Name)) {
 		// This node name already triggered a force refresh. Don't refresh again.
 		return nil, nil
