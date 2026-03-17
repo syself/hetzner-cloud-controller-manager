@@ -238,6 +238,9 @@ func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) 
 }
 
 func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsForceRefresh(t *testing.T) {
+	// If a node name is not in the cache, then only on the time the cache should be refreshed. A
+	// second time (during the time of CACHE_TIMEOUT), the unknown node name should not trigger a
+	// cache refresh again.
 	env := newTestEnv()
 	defer env.Teardown()
 
