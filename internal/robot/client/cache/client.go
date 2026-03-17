@@ -18,11 +18,7 @@ const (
 	robotUserNameENVVar = "ROBOT_USER_NAME"
 	robotPasswordENVVar = "ROBOT_PASSWORD"
 	cacheTimeoutENVVar  = "CACHE_TIMEOUT"
-
-	// We don't want to remember a node name for ever. Imagine a bm machine with constant hostname
-	// gets provisioned twice. Then we want the second time to work like the first: The cache of
-	// Robot servers should be updated via ServerGetListForceRefresh().
-	defaultMissingServerNameTTL = 5 * time.Minute
+	defaultCacheTimeout = 5 * time.Minute
 )
 
 var _ robotclient.Client = &cacheRobotClient{}
@@ -35,9 +31,13 @@ type cacheRobotClient struct {
 	now        func() time.Time
 
 	// cache
-	l                  []models.Server
-	m                  map[int]*models.Server
-	missingServerNames map[string]time.Time
+	l []models.Server
+	m map[int]*models.Server
+	// forcedRefreshServerNames stores when a node name last triggered a forced
+	// Robot server list refresh. While that timestamp is still within the cache
+	// timeout window, repeated lookups for the same missing name skip the extra
+	// uncached Robot API call.
+	forcedRefreshServerNames map[string]time.Time
 }
 
 // NewCachedRobotClient creates a new robot client with caching enabled.
@@ -58,7 +58,7 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 	}
 
 	if cacheTimeout == 0 {
-		cacheTimeout = 5 * time.Minute
+		cacheTimeout = defaultCacheTimeout
 	}
 
 	credentialsDir := credentials.GetDirectory(rootDir)
@@ -114,7 +114,6 @@ func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
 
 		// set time of last update
 		c.lastUpdate = c.currentTime()
-		c.missingServerNames = nil
 	}
 
 	server, found := c.m[id]
@@ -144,7 +143,6 @@ func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 
 		// set time of last update
 		c.lastUpdate = c.currentTime()
-		c.missingServerNames = nil
 	}
 
 	return c.l, nil
@@ -156,30 +154,31 @@ func (c *cacheRobotClient) ServerGetListForceRefresh() ([]models.Server, error) 
 	return c.ServerGetList()
 }
 
-// HasMissingServerName reports whether name is still cached as a recent miss.
-func (c *cacheRobotClient) HasMissingServerName(name string) bool {
-	if c.missingServerNames == nil {
+// NodeHasAlreadyForcedRefresh reports whether nodeName already triggered a
+// forced refresh within the current cache timeout window.
+func (c *cacheRobotClient) NodeHasAlreadyForcedRefresh(nodeName string) bool {
+	if c.forcedRefreshServerNames == nil {
 		return false
 	}
 
-	expiresAt, found := c.missingServerNames[name]
+	forcedAt, found := c.forcedRefreshServerNames[nodeName]
 	if !found {
 		return false
 	}
-	if c.currentTime().After(expiresAt) {
-		delete(c.missingServerNames, name)
+	if c.currentTime().After(forcedAt.Add(c.forceRefreshTimeout())) {
+		delete(c.forcedRefreshServerNames, nodeName)
 		return false
 	}
 	return true
 }
 
-// RememberMissingServerName stores name in the cache of recent misses until its
-// expiration time is reached.
-func (c *cacheRobotClient) RememberMissingServerName(name string) {
-	if c.missingServerNames == nil {
-		c.missingServerNames = make(map[string]time.Time)
+// NodeTriggeredForcedRefresh records that nodeName already triggered a forced
+// refresh.
+func (c *cacheRobotClient) NodeTriggeredForcedRefresh(nodeName string) {
+	if c.forcedRefreshServerNames == nil {
+		c.forcedRefreshServerNames = make(map[string]time.Time)
 	}
-	c.missingServerNames[name] = c.currentTime().Add(defaultMissingServerNameTTL)
+	c.forcedRefreshServerNames[nodeName] = c.currentTime()
 }
 
 func (c *cacheRobotClient) shouldSync() bool {
@@ -201,6 +200,13 @@ func (c *cacheRobotClient) currentTime() time.Time {
 	return c.now()
 }
 
+func (c *cacheRobotClient) forceRefreshTimeout() time.Duration {
+	if c.timeout == 0 {
+		return defaultCacheTimeout
+	}
+	return c.timeout
+}
+
 func (c *cacheRobotClient) SetCredentials(username, password string) error {
 	err := c.robotClient.SetCredentials(username, password)
 	if err != nil {
@@ -208,6 +214,6 @@ func (c *cacheRobotClient) SetCredentials(username, password string) error {
 	}
 	// The credentials have been updated, so we need to invalidate the cache.
 	c.m = nil
-	c.missingServerNames = nil
+	c.forcedRefreshServerNames = nil
 	return nil
 }

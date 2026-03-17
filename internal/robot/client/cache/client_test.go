@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/credentials"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/mocks"
 	"github.com/syself/hrobot-go/models"
 )
 
@@ -85,43 +86,66 @@ func Test_updateRobotCredentials(t *testing.T) {
 	require.Len(t, servers, 1)
 }
 
-func TestRememberMissingServerNameExpires(t *testing.T) {
+func TestNodeTriggeredForcedRefreshExpiresAfterCacheTimeout(t *testing.T) {
 	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
 	client := &cacheRobotClient{
-		now: func() time.Time { return now },
+		now:     func() time.Time { return now },
+		timeout: 10 * time.Minute,
 	}
 
-	client.RememberMissingServerName("bm-missing")
-	require.True(t, client.HasMissingServerName("bm-missing"))
+	client.NodeTriggeredForcedRefresh("bm-missing")
+	require.True(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
 
-	now = now.Add(defaultMissingServerNameTTL - time.Second)
-	require.True(t, client.HasMissingServerName("bm-missing"))
+	now = now.Add(client.timeout - time.Second)
+	require.True(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
 
 	now = now.Add(2 * time.Second)
-	require.False(t, client.HasMissingServerName("bm-missing"))
-	require.Empty(t, client.missingServerNames)
+	require.False(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
+	require.Empty(t, client.forcedRefreshServerNames)
 }
 
-func TestRememberMissingServerNameRefreshesExpiry(t *testing.T) {
+func TestNodeTriggeredForcedRefreshRefreshesTimestamp(t *testing.T) {
 	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
 	client := &cacheRobotClient{
-		now: func() time.Time { return now },
+		now:     func() time.Time { return now },
+		timeout: 5 * time.Minute,
 	}
 
-	client.RememberMissingServerName("bm-missing")
-	firstExpiry := client.missingServerNames["bm-missing"]
+	client.NodeTriggeredForcedRefresh("bm-missing")
+	firstForcedAt := client.forcedRefreshServerNames["bm-missing"]
 
 	now = now.Add(2 * time.Minute)
-	client.RememberMissingServerName("bm-missing")
-	secondExpiry := client.missingServerNames["bm-missing"]
+	client.NodeTriggeredForcedRefresh("bm-missing")
+	secondForcedAt := client.forcedRefreshServerNames["bm-missing"]
 
-	require.True(t, secondExpiry.After(firstExpiry))
+	require.True(t, secondForcedAt.After(firstForcedAt))
 
 	now = now.Add(4 * time.Minute)
-	require.True(t, client.HasMissingServerName("bm-missing"))
+	require.True(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
 
-	now = secondExpiry.Add(time.Second)
-	require.False(t, client.HasMissingServerName("bm-missing"))
+	now = secondForcedAt.Add(client.timeout + time.Second)
+	require.False(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
+}
+
+func TestServerGetListKeepsForcedRefreshNames(t *testing.T) {
+	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
+	robotClient := &mocks.RobotClient{}
+	robotClient.On("ServerGetList").Return([]models.Server{
+		{Name: "bm-existing", ServerNumber: 321},
+	}, nil)
+
+	client := &cacheRobotClient{
+		robotClient: robotClient,
+		now:         func() time.Time { return now },
+		timeout:     time.Hour,
+	}
+	client.NodeTriggeredForcedRefresh("bm-missing")
+
+	servers, err := client.ServerGetList()
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.True(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
+	robotClient.AssertExpectations(t)
 }
 
 func writeCredentials(rootDir, user, password string) error {

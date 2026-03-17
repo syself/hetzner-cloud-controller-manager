@@ -30,22 +30,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 )
 
-// robotServerListForceRefreshClient is implemented by Robot clients that can
-// bypass their cache timeout and remember names missing in the current cache.
-type robotServerListForceRefreshClient interface {
-	// ServerGetListForceRefresh reloads the Robot server list immediately,
-	// bypassing the normal cache timeout.
-	ServerGetListForceRefresh() ([]models.Server, error)
-
-	// HasMissingServerName reports whether name is still cached as a recent miss
-	// and should skip another forced refresh for now.
-	HasMissingServerName(name string) bool
-
-	// RememberMissingServerName records name as missing until its miss-cache
-	// entry expires.
-	RememberMissingServerName(name string)
-}
-
 func getHCloudServerByName(ctx context.Context, c *hcloud.Client, name string) (*hcloud.Server, error) {
 	const op = "hcloud/getServerByName"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
@@ -93,19 +77,19 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 		}
 	}
 
-	// Only the cached Robot client can bypass its timeout and reload immediately.
-	forceRefreshClient, ok := c.(robotServerListForceRefreshClient)
-	if !ok {
-		// robot Client does not support force refresh
+	// CAPH can create the bare-metal server first and only update the Kubernetes
+	// Node name afterwards. During that short window the Robot list cache can
+	// still hold the old server name, so a name lookup would incorrectly conclude
+	// that the server disappeared and the node could be deleted immediately.
+	// Force one uncached Robot list reload for that name to bridge the rename,
+	// then suppress repeated forced refreshes for the same missing name until the
+	// normal Robot list cache timeout has elapsed.
+	if c.NodeHasAlreadyForcedRefresh(string(node.Name)) {
+		// This node name already triggered a force refresh. Don't refresh again.
 		return nil, nil
 	}
 
-	if forceRefreshClient.HasMissingServerName(string(node.Name)) {
-		// This node name already triggerd a force refresh. Don't refresh again.
-		return nil, nil
-	}
-
-	serverList, err = forceRefreshClient.ServerGetListForceRefresh()
+	serverList, err = c.ServerGetListForceRefresh()
 	if err != nil {
 		hcops.HandleRateLimitExceededError(err, node)
 		return nil, fmt.Errorf("%s: force refresh after cache miss: %w", op, err)
@@ -119,7 +103,7 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 	}
 
 	// Remember this node name, so that it does not trigger a cache refresh again.
-	forceRefreshClient.RememberMissingServerName(string(node.Name))
+	c.NodeTriggeredForcedRefresh(string(node.Name))
 
 	// No server found.
 	return nil, nil
