@@ -14,17 +14,8 @@ func (m *RobotClient) ServerGetList() ([]models.Server, error) {
 	return getRobotServers(args, 0), args.Error(1)
 }
 
-func (m *RobotClient) ServerGetListForceRefresh() ([]models.Server, error) {
+func (m *RobotClient) ServerGetListForceRefresh(_ string) ([]models.Server, error) {
 	return m.ServerGetList()
-}
-
-func (m *RobotClient) NodeHasAlreadyForcedRefresh(nodeName string) bool {
-	_ = nodeName
-	return false
-}
-
-func (m *RobotClient) NodeTriggeredForcedRefresh(nodeName string) {
-	_ = nodeName
 }
 
 func (m *RobotClient) SetCredentials(_, _ string) error {

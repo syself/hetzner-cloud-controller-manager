@@ -148,15 +148,28 @@ func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 	return c.l, nil
 }
 
-// ServerGetListForceRefresh invalidates the current cache and reloads the list from Robot.
-func (c *cacheRobotClient) ServerGetListForceRefresh() ([]models.Server, error) {
+// ServerGetListForceRefresh invalidates the current cache and reloads the list
+// from Robot unless nodeName already triggered a forced refresh within the
+// current timeout window.
+func (c *cacheRobotClient) ServerGetListForceRefresh(nodeName string) ([]models.Server, error) {
+	if nodeName != "" && c.nodeHasAlreadyForcedRefresh(nodeName) {
+		return c.ServerGetList()
+	}
+
 	c.m = nil
-	return c.ServerGetList()
+	list, err := c.ServerGetList()
+	if err != nil {
+		return nil, err
+	}
+	if nodeName != "" {
+		c.nodeTriggeredForcedRefresh(nodeName)
+	}
+	return list, nil
 }
 
-// NodeHasAlreadyForcedRefresh reports whether nodeName already triggered a
+// nodeHasAlreadyForcedRefresh reports whether nodeName already triggered a
 // forced refresh within the current cache timeout window.
-func (c *cacheRobotClient) NodeHasAlreadyForcedRefresh(nodeName string) bool {
+func (c *cacheRobotClient) nodeHasAlreadyForcedRefresh(nodeName string) bool {
 	if c.forcedRefreshServerNames == nil {
 		return false
 	}
@@ -172,9 +185,9 @@ func (c *cacheRobotClient) NodeHasAlreadyForcedRefresh(nodeName string) bool {
 	return true
 }
 
-// NodeTriggeredForcedRefresh records that nodeName already triggered a forced
+// nodeTriggeredForcedRefresh records that nodeName already triggered a forced
 // refresh.
-func (c *cacheRobotClient) NodeTriggeredForcedRefresh(nodeName string) {
+func (c *cacheRobotClient) nodeTriggeredForcedRefresh(nodeName string) {
 	if c.forcedRefreshServerNames == nil {
 		c.forcedRefreshServerNames = make(map[string]time.Time)
 	}

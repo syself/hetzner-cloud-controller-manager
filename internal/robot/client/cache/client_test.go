@@ -93,14 +93,14 @@ func TestNodeTriggeredForcedRefreshExpiresAfterCacheTimeout(t *testing.T) {
 		timeout: 10 * time.Minute,
 	}
 
-	client.NodeTriggeredForcedRefresh("bm-missing")
-	require.True(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
+	client.nodeTriggeredForcedRefresh("bm-missing")
+	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
 
 	now = now.Add(client.timeout - time.Second)
-	require.True(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
+	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
 
 	now = now.Add(2 * time.Second)
-	require.False(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
+	require.False(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
 	require.Empty(t, client.forcedRefreshServerNames)
 }
 
@@ -111,20 +111,20 @@ func TestNodeTriggeredForcedRefreshRefreshesTimestamp(t *testing.T) {
 		timeout: 5 * time.Minute,
 	}
 
-	client.NodeTriggeredForcedRefresh("bm-missing")
+	client.nodeTriggeredForcedRefresh("bm-missing")
 	firstForcedAt := client.forcedRefreshServerNames["bm-missing"]
 
 	now = now.Add(2 * time.Minute)
-	client.NodeTriggeredForcedRefresh("bm-missing")
+	client.nodeTriggeredForcedRefresh("bm-missing")
 	secondForcedAt := client.forcedRefreshServerNames["bm-missing"]
 
 	require.True(t, secondForcedAt.After(firstForcedAt))
 
 	now = now.Add(4 * time.Minute)
-	require.True(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
+	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
 
 	now = secondForcedAt.Add(client.timeout + time.Second)
-	require.False(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
+	require.False(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
 }
 
 func TestServerGetListKeepsForcedRefreshNames(t *testing.T) {
@@ -139,12 +139,12 @@ func TestServerGetListKeepsForcedRefreshNames(t *testing.T) {
 		now:         func() time.Time { return now },
 		timeout:     time.Hour,
 	}
-	client.NodeTriggeredForcedRefresh("bm-missing")
+	client.nodeTriggeredForcedRefresh("bm-missing")
 
 	servers, err := client.ServerGetList()
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
-	require.True(t, client.NodeHasAlreadyForcedRefresh("bm-missing"))
+	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
 	robotClient.AssertExpectations(t)
 }
 
