@@ -237,10 +237,17 @@ func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) 
 	}
 }
 
-func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsForceRefresh(t *testing.T) {
-	// If a node name is not in the cache, then only on the time the cache should be refreshed. A
-	// second time (during the time of CACHE_TIMEOUT), the unknown node name should not trigger a
-	// cache refresh again.
+func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsSecondForceRefresh(t *testing.T) {
+	// This test exercises the name-based Robot lookup path in getRobotServerByName:
+	//
+	// 1. ServerGetList() checks the cached Robot server list.
+	// 2. If the name is missing there, ServerGetListForceRefresh(node.Name) does one uncached reload.
+	// 3. A second lookup for the same still-missing name within CACHE_TIMEOUT must not trigger
+	//    another uncached reload.
+	//
+	// The behavior is important because CAPH can rename Robot servers during provisioning, so the
+	// first miss should recover from a stale cache, but repeated misses for the same name should not
+	// hammer the Robot API.
 	env := newTestEnv()
 	defer env.Teardown()
 
@@ -251,9 +258,9 @@ func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsForceRefresh
 	)
 	defer resetEnv()
 
-	robotServerListCalls := 0
+	robotListHTTPCalls := 0
 	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
-		robotServerListCalls++
+		robotListHTTPCalls++
 		json.NewEncoder(w).Encode([]models.ServerResponse{
 			{
 				Server: models.Server{
@@ -276,6 +283,9 @@ func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsForceRefresh
 		ObjectMeta: metav1.ObjectMeta{Name: "bm-missing"},
 	}
 
+	// First lookup for bm-missing:
+	// - ServerGetList() loads the current list from Robot. That is HTTP call 1.
+	// - bm-missing is not present, so getRobotServerByName forces one reload. That is HTTP call 2.
 	exists, err := instances.InstanceExists(context.TODO(), node)
 	if err != nil {
 		t.Fatalf("Unexpected error on first miss: %v", err)
@@ -283,10 +293,16 @@ func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsForceRefresh
 	if exists {
 		t.Fatal("Expected bm-missing to be absent on first lookup")
 	}
-	if robotServerListCalls != 2 {
-		t.Fatalf("Expected 2 Robot list calls after first miss, got %d", robotServerListCalls)
+	if robotListHTTPCalls != 2 {
+		t.Fatalf("Expected 2 Robot list calls after first miss, got %d", robotListHTTPCalls)
 	}
+	callsAfterFirstMiss := robotListHTTPCalls
 
+	// Second lookup for the same missing name within CACHE_TIMEOUT:
+	// - ServerGetList() is served from cache, so there is no extra HTTP call.
+	// - ServerGetListForceRefresh(node.Name) notices that bm-missing already triggered a forced
+	//   refresh in this cache window, so it reuses the cached list instead of issuing another HTTP
+	//   request.
 	exists, err = instances.InstanceExists(context.TODO(), node)
 	if err != nil {
 		t.Fatalf("Unexpected error on second miss: %v", err)
@@ -294,8 +310,8 @@ func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsForceRefresh
 	if exists {
 		t.Fatal("Expected bm-missing to be absent on second lookup")
 	}
-	if robotServerListCalls != 2 {
-		t.Fatalf("Expected repeated miss to skip force refresh, got %d Robot list calls", robotServerListCalls)
+	if robotListHTTPCalls != callsAfterFirstMiss {
+		t.Fatalf("Expected repeated miss to skip force refresh, got %d Robot list calls", robotListHTTPCalls)
 	}
 }
 
