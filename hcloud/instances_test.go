@@ -26,6 +26,7 @@ import (
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/schema"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/robot/client/cache"
 	"github.com/syself/hrobot-go/models"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -170,6 +171,147 @@ func TestInstances_InstanceExists(t *testing.T) {
 				t.Fatalf("Expected server to exist %v but got %v", test.expected, exists)
 			}
 		})
+	}
+}
+
+func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) {
+	env := newTestEnv()
+	defer env.Teardown()
+
+	resetEnv := Setenv(t,
+		"ROBOT_USER_NAME", "user",
+		"ROBOT_PASSWORD", "pass",
+		"CACHE_TIMEOUT", "1h",
+	)
+	defer resetEnv()
+
+	// servers backs the Robot list response and is mutated during the test.
+	servers := make([]models.Server, 0, 2)
+	servers = append(servers, models.Server{
+		ServerIP:      "123.123.123.123",
+		ServerIPv6Net: "2a01:f48:111:4221::",
+		ServerNumber:  321,
+		Name:          "bm-existing",
+	})
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
+		responses := make([]models.ServerResponse, 0, len(servers))
+		for _, server := range servers {
+			responses = append(responses, models.ServerResponse{Server: server})
+		}
+		json.NewEncoder(w).Encode(responses)
+	})
+
+	robotClient, err := cache.NewCachedRobotClient(t.TempDir(), env.Server.Client(), env.Server.URL+"/robot")
+	if err != nil {
+		t.Fatalf("Unexpected error creating cached robot client: %v", err)
+	}
+
+	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+
+	// Warm the cache while bm-new does not exist yet.
+	exists, err := instances.InstanceExists(context.TODO(), &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "bm-existing"},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error warming cache: %v", err)
+	}
+	if !exists {
+		t.Fatal("Expected bm-existing to exist")
+	}
+
+	servers = append(servers, models.Server{
+		ServerIP:      "123.123.123.124",
+		ServerIPv6Net: "2a01:f48:111:4222::",
+		ServerNumber:  322,
+		Name:          "bm-new",
+	})
+
+	exists, err = instances.InstanceExists(context.TODO(), &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "bm-new"},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error for bm-new: %v", err)
+	}
+	if !exists {
+		t.Fatal("Expected bm-new to exist after it was created")
+	}
+}
+
+func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsSecondForceRefresh(t *testing.T) {
+	// This test exercises the name-based Robot lookup path in getRobotServerByName:
+	//
+	// 1. ServerGetList() checks the cached Robot server list.
+	// 2. If the name is missing there, ServerGetListForceRefresh(node.Name) does one uncached reload.
+	// 3. A second lookup for the same still-missing name within CACHE_TIMEOUT must not trigger
+	//    another uncached reload.
+	//
+	// The behavior is important because CAPH can rename Robot servers during provisioning, so the
+	// first miss should recover from a stale cache, but repeated misses for the same name should not
+	// hammer the Robot API.
+	env := newTestEnv()
+	defer env.Teardown()
+
+	resetEnv := Setenv(t,
+		"ROBOT_USER_NAME", "user",
+		"ROBOT_PASSWORD", "pass",
+		"CACHE_TIMEOUT", "1h",
+	)
+	defer resetEnv()
+
+	robotListHTTPCalls := 0
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
+		robotListHTTPCalls++
+		json.NewEncoder(w).Encode([]models.ServerResponse{
+			{
+				Server: models.Server{
+					ServerIP:      "123.123.123.123",
+					ServerIPv6Net: "2a01:f48:111:4221::",
+					ServerNumber:  321,
+					Name:          "bm-existing",
+				},
+			},
+		})
+	})
+
+	robotClient, err := cache.NewCachedRobotClient(t.TempDir(), env.Server.Client(), env.Server.URL+"/robot")
+	if err != nil {
+		t.Fatalf("Unexpected error creating cached robot client: %v", err)
+	}
+
+	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "bm-missing"},
+	}
+
+	// First lookup for bm-missing:
+	// - ServerGetList() loads the current list from Robot. That is HTTP call 1.
+	// - bm-missing is not present, so getRobotServerByName forces one reload. That is HTTP call 2.
+	exists, err := instances.InstanceExists(context.TODO(), node)
+	if err != nil {
+		t.Fatalf("Unexpected error on first miss: %v", err)
+	}
+	if exists {
+		t.Fatal("Expected bm-missing to be absent on first lookup")
+	}
+	if robotListHTTPCalls != 2 {
+		t.Fatalf("Expected 2 Robot list calls after first miss, got %d", robotListHTTPCalls)
+	}
+	callsAfterFirstMiss := robotListHTTPCalls
+
+	// Second lookup for the same missing name within CACHE_TIMEOUT:
+	// - ServerGetList() is served from cache, so there is no extra HTTP call.
+	// - ServerGetListForceRefresh(node.Name) notices that bm-missing already triggered a forced
+	//   refresh in this cache window, so it reuses the cached list instead of issuing another HTTP
+	//   request.
+	exists, err = instances.InstanceExists(context.TODO(), node)
+	if err != nil {
+		t.Fatalf("Unexpected error on second miss: %v", err)
+	}
+	if exists {
+		t.Fatal("Expected bm-missing to be absent on second lookup")
+	}
+	if robotListHTTPCalls != callsAfterFirstMiss {
+		t.Fatalf("Expected repeated miss to skip force refresh, got %d Robot list calls", robotListHTTPCalls)
 	}
 }
 
