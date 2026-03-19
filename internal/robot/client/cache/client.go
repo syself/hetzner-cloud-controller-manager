@@ -93,6 +93,7 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 	handler.timeout = cacheTimeout
 	handler.robotClient = c
 	handler.now = time.Now
+	handler.forcedRefreshServerNames = make(map[string]time.Time)
 	return handler, nil
 }
 
@@ -156,14 +157,19 @@ func (c *cacheRobotClient) ServerGetListForceRefresh(nodeName string) ([]models.
 		return c.ServerGetList()
 	}
 
+	// setting cache of serverId to serverName mapping to nil, so that the next ServerGetList() will
+	// call the robot API to get the new data.
 	c.m = nil
+
 	list, err := c.ServerGetList()
 	if err != nil {
 		return nil, err
 	}
+
 	if nodeName != "" {
-		c.nodeTriggeredForcedRefresh(nodeName)
+		c.forcedRefreshServerNames[nodeName] = c.currentTime()
 	}
+
 	return list, nil
 }
 
@@ -178,22 +184,14 @@ func (c *cacheRobotClient) nodeHasAlreadyForcedRefresh(nodeName string) bool {
 	if !found {
 		return false
 	}
+
 	if c.currentTime().After(forcedAt.Add(c.forceRefreshTimeout())) {
 		delete(c.forcedRefreshServerNames, nodeName)
 		return false
 	}
+
 	return true
 }
-
-// nodeTriggeredForcedRefresh records that nodeName already triggered a forced
-// refresh.
-func (c *cacheRobotClient) nodeTriggeredForcedRefresh(nodeName string) {
-	if c.forcedRefreshServerNames == nil {
-		c.forcedRefreshServerNames = make(map[string]time.Time)
-	}
-	c.forcedRefreshServerNames[nodeName] = c.currentTime()
-}
-
 func (c *cacheRobotClient) shouldSync() bool {
 	// map is nil means we have no cached value yet
 	if c.m == nil {

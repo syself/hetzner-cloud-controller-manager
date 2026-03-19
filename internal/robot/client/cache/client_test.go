@@ -86,14 +86,14 @@ func Test_updateRobotCredentials(t *testing.T) {
 	require.Len(t, servers, 1)
 }
 
-func TestNodeTriggeredForcedRefreshExpiresAfterCacheTimeout(t *testing.T) {
+func TestForcedRefreshNameExpiresAfterCacheTimeout(t *testing.T) {
 	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
 	client := &cacheRobotClient{
 		now:     func() time.Time { return now },
 		timeout: 10 * time.Minute,
 	}
-
-	client.nodeTriggeredForcedRefresh("bm-missing")
+	client.forcedRefreshServerNames = make(map[string]time.Time)
+	client.forcedRefreshServerNames["bm-missing"] = now
 	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
 
 	now = now.Add(client.timeout - time.Second)
@@ -104,18 +104,19 @@ func TestNodeTriggeredForcedRefreshExpiresAfterCacheTimeout(t *testing.T) {
 	require.Empty(t, client.forcedRefreshServerNames)
 }
 
-func TestNodeTriggeredForcedRefreshRefreshesTimestamp(t *testing.T) {
+func TestForcedRefreshNameTimestampCanBeUpdated(t *testing.T) {
 	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
 	client := &cacheRobotClient{
 		now:     func() time.Time { return now },
 		timeout: 5 * time.Minute,
 	}
+	client.forcedRefreshServerNames = make(map[string]time.Time)
 
-	client.nodeTriggeredForcedRefresh("bm-missing")
+	client.forcedRefreshServerNames["bm-missing"] = now
 	firstForcedAt := client.forcedRefreshServerNames["bm-missing"]
 
 	now = now.Add(2 * time.Minute)
-	client.nodeTriggeredForcedRefresh("bm-missing")
+	client.forcedRefreshServerNames["bm-missing"] = now
 	secondForcedAt := client.forcedRefreshServerNames["bm-missing"]
 
 	require.True(t, secondForcedAt.After(firstForcedAt))
@@ -139,8 +140,8 @@ func TestServerGetListKeepsForcedRefreshNames(t *testing.T) {
 		now:         func() time.Time { return now },
 		timeout:     time.Hour,
 	}
-	client.nodeTriggeredForcedRefresh("bm-missing")
-
+	client.forcedRefreshServerNames = make(map[string]time.Time)
+	client.forcedRefreshServerNames["bm-missing"] = now
 	servers, err := client.ServerGetList()
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
