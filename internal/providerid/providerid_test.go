@@ -101,6 +101,23 @@ func TestToServerID(t *testing.T) {
 			wantErr:           errors.New("providerID is missing a serverID: hcloud://bm-"),
 		},
 		{
+			// The new upstream-style prefix should fail in the same way as the legacy
+			// prefix when the numeric server id is malformed.
+			name:              "[robot-upstream] invalid id",
+			providerID:        "hrobot://my-robot",
+			wantID:            0,
+			wantIsCloudServer: false,
+			wantErr:           errors.New("unable to parse server id: hrobot://my-robot"),
+		},
+		{
+			// Parsing should reject an empty upstream-style robot provider id.
+			name:              "[robot-upstream] missing id",
+			providerID:        "hrobot://",
+			wantID:            0,
+			wantIsCloudServer: false,
+			wantErr:           errors.New("providerID is missing a serverID: hrobot://"),
+		},
+		{
 			name:              "unknown format",
 			providerID:        "foobar/321",
 			wantID:            0,
@@ -155,6 +172,7 @@ func FuzzRoundTripCloud(f *testing.F) {
 func FuzzToServerId(f *testing.F) {
 	f.Add("hcloud://123123123")
 	f.Add("hcloud://bm-123123123")
+	f.Add("hrobot://123123123")
 
 	f.Fuzz(func(t *testing.T, providerID string) {
 		_, _, err := ToServerID(providerID)
