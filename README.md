@@ -89,6 +89,8 @@ ROBOT_PASSWORD
 
 Via CI, like [caph realising](https://github.com/syself/cluster-api-provider-hetzner/blob/main/docs/caph/04-developers/03-releasing.md)
 
+After CI is successful, update the Helm chart: [syself/charts](https://github.com/syself/charts).
+
 ---
 
 End of "About the fork"
