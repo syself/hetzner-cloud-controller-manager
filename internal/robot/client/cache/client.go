@@ -18,6 +18,7 @@ const (
 	robotUserNameENVVar = "ROBOT_USER_NAME"
 	robotPasswordENVVar = "ROBOT_PASSWORD"
 	cacheTimeoutENVVar  = "CACHE_TIMEOUT"
+	defaultCacheTimeout = 5 * time.Minute
 )
 
 var _ robotclient.Client = &cacheRobotClient{}
@@ -27,10 +28,16 @@ type cacheRobotClient struct {
 	timeout     time.Duration
 
 	lastUpdate time.Time
+	now        func() time.Time
 
 	// cache
 	l []models.Server
 	m map[int]*models.Server
+
+	// forcedRefreshServerNames stores when a node name last triggered a forced Robot server list
+	// refresh. While that timestamp is still within the cache timeout window, repeated lookups for
+	// the same missing server name skip the extra uncached Robot API call.
+	forcedRefreshServerNames map[string]time.Time
 }
 
 // NewCachedRobotClient creates a new robot client with caching enabled.
@@ -51,7 +58,7 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 	}
 
 	if cacheTimeout == 0 {
-		cacheTimeout = 5 * time.Minute
+		cacheTimeout = defaultCacheTimeout
 	}
 
 	credentialsDir := credentials.GetDirectory(rootDir)
@@ -85,6 +92,8 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 	handler := &cacheRobotClient{}
 	handler.timeout = cacheTimeout
 	handler.robotClient = c
+	handler.now = time.Now
+	handler.forcedRefreshServerNames = make(map[string]time.Time)
 	return handler, nil
 }
 
@@ -105,7 +114,7 @@ func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
 		}
 
 		// set time of last update
-		c.lastUpdate = time.Now()
+		c.lastUpdate = c.currentTime()
 	}
 
 	server, found := c.m[id]
@@ -134,22 +143,79 @@ func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 		}
 
 		// set time of last update
-		c.lastUpdate = time.Now()
+		c.lastUpdate = c.currentTime()
 	}
 
 	return c.l, nil
 }
 
+// ServerGetListForceRefresh invalidates the current cache and reloads the list
+// from Robot unless nodeName already triggered a forced refresh within the
+// current timeout window.
+func (c *cacheRobotClient) ServerGetListForceRefresh(nodeName string) ([]models.Server, error) {
+	if nodeName != "" && c.nodeHasAlreadyForcedRefresh(nodeName) {
+		return c.ServerGetList()
+	}
+
+	// setting cache of serverId to serverName mapping to nil, so that the next ServerGetList() will
+	// call the robot API to get the new data.
+	c.m = nil
+
+	list, err := c.ServerGetList()
+	if err != nil {
+		return nil, err
+	}
+
+	if nodeName != "" {
+		c.forcedRefreshServerNames[nodeName] = c.currentTime()
+	}
+
+	return list, nil
+}
+
+// nodeHasAlreadyForcedRefresh reports whether nodeName already triggered a
+// forced refresh within the current cache timeout window.
+func (c *cacheRobotClient) nodeHasAlreadyForcedRefresh(nodeName string) bool {
+	if c.forcedRefreshServerNames == nil {
+		return false
+	}
+
+	forcedAt, found := c.forcedRefreshServerNames[nodeName]
+	if !found {
+		return false
+	}
+
+	if c.currentTime().After(forcedAt.Add(c.forceRefreshTimeout())) {
+		delete(c.forcedRefreshServerNames, nodeName)
+		return false
+	}
+
+	return true
+}
 func (c *cacheRobotClient) shouldSync() bool {
 	// map is nil means we have no cached value yet
 	if c.m == nil {
 		c.m = make(map[int]*models.Server)
 		return true
 	}
-	if time.Now().After(c.lastUpdate.Add(c.timeout)) {
+	if c.currentTime().After(c.lastUpdate.Add(c.timeout)) {
 		return true
 	}
 	return false
+}
+
+func (c *cacheRobotClient) currentTime() time.Time {
+	if c.now == nil {
+		return time.Now()
+	}
+	return c.now()
+}
+
+func (c *cacheRobotClient) forceRefreshTimeout() time.Duration {
+	if c.timeout == 0 {
+		return defaultCacheTimeout
+	}
+	return c.timeout
 }
 
 func (c *cacheRobotClient) SetCredentials(username, password string) error {
@@ -159,5 +225,6 @@ func (c *cacheRobotClient) SetCredentials(username, password string) error {
 	}
 	// The credentials have been updated, so we need to invalidate the cache.
 	c.m = nil
+	c.forcedRefreshServerNames = nil
 	return nil
 }

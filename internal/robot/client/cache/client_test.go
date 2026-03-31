@@ -13,6 +13,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/credentials"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/mocks"
 	"github.com/syself/hrobot-go/models"
 )
 
@@ -83,6 +84,69 @@ func Test_updateRobotCredentials(t *testing.T) {
 	servers, err = robotClient.ServerGetList()
 	require.NoError(t, err)
 	require.Len(t, servers, 1)
+}
+
+func TestForcedRefreshNameExpiresAfterCacheTimeout(t *testing.T) {
+	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
+	client := &cacheRobotClient{
+		now:     func() time.Time { return now },
+		timeout: 10 * time.Minute,
+	}
+	client.forcedRefreshServerNames = make(map[string]time.Time)
+	client.forcedRefreshServerNames["bm-missing"] = now
+	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
+
+	now = now.Add(client.timeout - time.Second)
+	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
+
+	now = now.Add(2 * time.Second)
+	require.False(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
+	require.Empty(t, client.forcedRefreshServerNames)
+}
+
+func TestForcedRefreshNameTimestampCanBeUpdated(t *testing.T) {
+	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
+	client := &cacheRobotClient{
+		now:     func() time.Time { return now },
+		timeout: 5 * time.Minute,
+	}
+	client.forcedRefreshServerNames = make(map[string]time.Time)
+
+	client.forcedRefreshServerNames["bm-missing"] = now
+	firstForcedAt := client.forcedRefreshServerNames["bm-missing"]
+
+	now = now.Add(2 * time.Minute)
+	client.forcedRefreshServerNames["bm-missing"] = now
+	secondForcedAt := client.forcedRefreshServerNames["bm-missing"]
+
+	require.True(t, secondForcedAt.After(firstForcedAt))
+
+	now = now.Add(4 * time.Minute)
+	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
+
+	now = secondForcedAt.Add(client.timeout + time.Second)
+	require.False(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
+}
+
+func TestServerGetListKeepsForcedRefreshNames(t *testing.T) {
+	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
+	robotClient := &mocks.RobotClient{}
+	robotClient.On("ServerGetList").Return([]models.Server{
+		{Name: "bm-existing", ServerNumber: 321},
+	}, nil)
+
+	client := &cacheRobotClient{
+		robotClient: robotClient,
+		now:         func() time.Time { return now },
+		timeout:     time.Hour,
+	}
+	client.forcedRefreshServerNames = make(map[string]time.Time)
+	client.forcedRefreshServerNames["bm-missing"] = now
+	servers, err := client.ServerGetList()
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
+	robotClient.AssertExpectations(t)
 }
 
 func writeCredentials(rootDir, user, password string) error {

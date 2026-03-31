@@ -73,11 +73,29 @@ func getRobotServerByName(c robotclient.Client, node *corev1.Node) (server *mode
 
 	for i, s := range serverList {
 		if s.Name == node.Name {
-			server = &serverList[i]
+			return &serverList[i], nil
 		}
 	}
 
-	return server, nil
+	// CAPH changes the Robot server name during provisioning. This means the cache of the
+	// server-name-to-server-ID mapping could be outdated. Force one uncached Robot list reload for
+	// that name to handle the rename. The Robot client suppresses repeated forced refreshes for the
+	// same missing name until the normal Robot list cache timeout has elapsed.
+	serverList, err = c.ServerGetListForceRefresh(string(node.Name))
+	if err != nil {
+		hcops.HandleRateLimitExceededError(err, node)
+		return nil, fmt.Errorf("%s: force refresh after cache miss: %w", op, err)
+	}
+
+	for i, s := range serverList {
+		if s.Name == node.Name {
+			// Server was found after cache refresh
+			return &serverList[i], nil
+		}
+	}
+
+	// No server found.
+	return nil, nil
 }
 
 func getRobotServerByID(c robotclient.Client, id int, node *corev1.Node) (s *models.Server, e error) {
