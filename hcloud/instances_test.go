@@ -224,7 +224,7 @@ func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) 
 		t.Fatalf("Unexpected error creating cached robot client: %v", err)
 	}
 
-	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0, false)
 
 	// Warm the cache while bm-new does not exist yet.
 	exists, err := instances.InstanceExists(context.TODO(), &corev1.Node{
@@ -296,7 +296,7 @@ func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsSecondForceR
 		t.Fatalf("Unexpected error creating cached robot client: %v", err)
 	}
 
-	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0, false)
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: "bm-missing"},
 	}
