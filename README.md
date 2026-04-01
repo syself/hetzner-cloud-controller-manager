@@ -9,7 +9,14 @@ The Hetzner Cloud controller manager seamlessly integrates your Kubernetes clust
 
 ## About the Fork
 
-In the long run, we (Syself) would like to switch to the [upstream ccm](https://github.com/syself/hetzner-cloud-controller-manager/) again.
+We plan to support the [upstream hcloud
+ccm](https://github.com/hetznercloud/hcloud-cloud-controller-manager/) in
+[CAPH](https://github.com/syself/cluster-api-provider-hetzner/). After that, this fork is no longer
+needed.
+
+## About the Fork (old)
+
+In the long run, we (Syself) would like to switch to the [upstream ccm](https://github.com/hetznercloud/hcloud-cloud-controller-manager/) again.
 
 A lot of changes were made in the upstream fork, and we don't plan to merge them into our fork.
 
@@ -62,10 +69,16 @@ See [CAPH docs](https://syself.com/docs/caph/topics/baremetal/creating-workload-
 
 ## Usage
 
-We recommend to mount the secret `hetzner` as volume and make it available for the container as `/etc/hetzner-secret`.
-Then the credentials are automatically reloaded, when the secret changes.
-When you use hot-reloading, the secret keys must be named `hcloud` (or `token`, for upstream hcloud-ccm compatibility), `robot-user`, and `robot-password`.
-You see an example in the [ccm helm chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner)
+We recommend to mount the secret `hetzner` as volume and make it available for the container as
+`/etc/hetzner-secret`. Then the credentials are automatically reloaded, when the secret changes.
+
+When you use hot-reloading, the secret keys must be named `hcloud` (or `token`, for upstream
+hcloud-ccm compatibility), `robot-user`, and `robot-password`. You see an example in the [ccm helm
+chart](https://github.com/syself/charts/tree/main/charts/ccm-hetzner)
+
+For bare-metal nodes without an existing ProviderID, you can switch to `hrobot://<id>` via
+`--use-hrobot-provider-id-for-baremetal` (or
+`HCLOUD_USE_HROBOT_PROVIDER_ID_FOR_BAREMETAL=true`).
 
 ## Env Variables
 
@@ -74,6 +87,9 @@ ROBOT_DEBUG: When set to `true`, then api calls to the hetzner robot API will be
 CACHE_TIMEOUT: Timeout of the Robot API Cache. See [ParseDuration](https://pkg.go.dev/time#ParseDuration) for supported syntax.
 
 HCLOUD_ENDPOINT: Defaults to `https://api.hetzner.cloud/v1`
+
+HCLOUD_USE_HROBOT_PROVIDER_ID_FOR_BAREMETAL: When set to `true`, newly initialized bare-metal
+nodes use `hrobot://<id>` instead of `hcloud://bm-<id>`.
 
 Additional Env Variables are defined at the top of [cloud.go](https://github.com/syself/hetzner-cloud-controller-manager/blob/master/hcloud/cloud.go)
 

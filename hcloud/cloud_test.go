@@ -436,7 +436,7 @@ func Test_updateHcloudCredentials(t *testing.T) {
 			},
 		})
 	})
-	i := newInstances(hcloudClient, nil, AddressFamilyIPv4, 0)
+	i := newInstances(hcloudClient, nil, AddressFamilyIPv4, 0, false)
 
 	node := &corev1.Node{
 		Spec: corev1.NodeSpec{ProviderID: "hcloud://1"},

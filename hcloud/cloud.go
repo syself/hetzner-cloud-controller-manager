@@ -65,6 +65,7 @@ const (
 	hcloudLoadBalancersUsePrivateIP          = "HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP"
 	hcloudLoadBalancersDisableIPv6           = "HCLOUD_LOAD_BALANCERS_DISABLE_IPV6"
 	hcloudMetricsEnabledENVVar               = "HCLOUD_METRICS_ENABLED"
+	UseHrobotProviderIDForBaremetalEnvVar    = "HCLOUD_USE_HROBOT_PROVIDER_ID_FOR_BAREMETAL"
 	hcloudMetricsAddress                     = ":8233"
 	providerName                             = "hcloud"
 	hostNamePrefixRobot                      = "bm-"
@@ -247,6 +248,10 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
+	useHrobotProviderIDForBaremetal, err := getEnvBool(UseHrobotProviderIDForBaremetalEnvVar)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
 
 	credentialsDir := credentials.GetDirectory(rootDir)
 	_, err = os.Stat(credentialsDir)
@@ -261,7 +266,7 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 	return &cloud{
 		hcloudClient: hcloudClient,
 		robotClient:  robotClient,
-		instances:    newInstances(hcloudClient, robotClient, instancesAddressFamily, networkID),
+		instances:    newInstances(hcloudClient, robotClient, instancesAddressFamily, networkID, useHrobotProviderIDForBaremetal),
 		loadBalancer: loadBalancers,
 		routes:       nil,
 		networkID:    networkID,

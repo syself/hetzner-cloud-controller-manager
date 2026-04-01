@@ -89,7 +89,7 @@ func TestInstances_InstanceExists(t *testing.T) {
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, false)
 
 	tests := []struct {
 		name     string
@@ -112,6 +112,15 @@ func TestInstances_InstanceExists(t *testing.T) {
 			},
 			expected: true,
 		}, {
+			name: "existing robot server by id (hrobot)",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-server1",
+				},
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://321"},
+			},
+			expected: true,
+		}, {
 			name: "missing server by id",
 			node: &corev1.Node{
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://2"},
@@ -124,6 +133,15 @@ func TestInstances_InstanceExists(t *testing.T) {
 					Name: "bm-server2",
 				},
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-322"},
+			},
+			expected: false,
+		}, {
+			name: "missing robot server by id (hrobot)",
+			node: &corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-server2",
+				},
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://322"},
 			},
 			expected: false,
 		}, {
@@ -206,7 +224,7 @@ func TestInstances_InstanceExistsRobotServerCreatedAfterCacheFill(t *testing.T) 
 		t.Fatalf("Unexpected error creating cached robot client: %v", err)
 	}
 
-	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0, false)
 
 	// Warm the cache while bm-new does not exist yet.
 	exists, err := instances.InstanceExists(context.TODO(), &corev1.Node{
@@ -278,7 +296,7 @@ func TestInstances_InstanceExistsRobotServerRepeatedMissingNameSkipsSecondForceR
 		t.Fatalf("Unexpected error creating cached robot client: %v", err)
 	}
 
-	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, robotClient, AddressFamilyIPv4, 0, false)
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{Name: "bm-missing"},
 	}
@@ -348,7 +366,7 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, false)
 
 	tests := []struct {
 		name     string
@@ -371,6 +389,15 @@ func TestInstances_InstanceShutdown(t *testing.T) {
 			name: "bm server",
 			node: &corev1.Node{
 				Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-321"},
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "bm-server1",
+				},
+			},
+			expected: false,
+		}, {
+			name: "bm server (hrobot)",
+			node: &corev1.Node{
+				Spec: corev1.NodeSpec{ProviderID: "hrobot://321"},
 				ObjectMeta: metav1.ObjectMeta{
 					Name: "bm-server1",
 				},
@@ -416,7 +443,7 @@ func TestInstances_InstanceMetadata(t *testing.T) {
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, false)
 
 	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
 		Spec: corev1.NodeSpec{ProviderID: "hcloud://1"},
@@ -457,7 +484,7 @@ func TestInstances_InstanceMetadataRobotServer(t *testing.T) {
 		})
 	})
 
-	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0)
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, false)
 
 	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -482,6 +509,86 @@ func TestInstances_InstanceMetadataRobotServer(t *testing.T) {
 
 	if !reflect.DeepEqual(metadata, expectedMetadata) {
 		t.Fatalf("Expected metadata %+v but got %+v", *expectedMetadata, *metadata)
+	}
+}
+
+func TestInstances_InstanceMetadataRobotServerUsesHrobotProviderIDFlag(t *testing.T) {
+	env := newTestEnv()
+	defer env.Teardown()
+	env.Mux.HandleFunc("/robot/server", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode([]models.ServerResponse{
+			{
+				Server: models.Server{
+					ServerIP:      "123.123.123.123",
+					ServerIPv6Net: "2a01:f48:111:4221::",
+					ServerNumber:  321,
+					Product:       "bm-product 1",
+					Name:          "bm-server1",
+					Dc:            "NBG1-DC1",
+				},
+			},
+		})
+	})
+
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, true)
+
+	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "bm-server1",
+		},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	expectedMetadata := &cloudprovider.InstanceMetadata{
+		ProviderID:   "hrobot://321",
+		InstanceType: "bm-product-1",
+		NodeAddresses: []corev1.NodeAddress{
+			{Type: corev1.NodeHostName, Address: "bm-server1"},
+			{Type: corev1.NodeExternalIP, Address: "123.123.123.123"},
+		},
+		Zone:   "nbg1",
+		Region: "eu-central",
+	}
+
+	if !reflect.DeepEqual(metadata, expectedMetadata) {
+		t.Fatalf("Expected metadata %+v but got %+v", *expectedMetadata, *metadata)
+	}
+}
+
+func TestInstances_InstanceMetadataRobotServerKeepsExistingProviderIDWhenFlagIsEnabled(t *testing.T) {
+	env := newTestEnv()
+	defer env.Teardown()
+	env.Mux.HandleFunc("/robot/server/321", func(w http.ResponseWriter, _ *http.Request) {
+		json.NewEncoder(w).Encode(models.ServerResponse{
+			Server: models.Server{
+				ServerIP:      "123.123.123.123",
+				ServerIPv6Net: "2a01:f48:111:4221::",
+				ServerNumber:  321,
+				Product:       "bm-product 1",
+				Name:          "bm-server1",
+				Dc:            "NBG1-DC1",
+			},
+		})
+	})
+
+	instances := newInstances(env.Client, env.RobotClient, AddressFamilyIPv4, 0, true)
+
+	metadata, err := instances.InstanceMetadata(context.TODO(), &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "bm-server1",
+		},
+		// Existing nodes must keep their ProviderID even when the new format is
+		// enabled, otherwise migrations would silently rewrite node identity.
+		Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-321"},
+	})
+	if err != nil {
+		t.Fatalf("Unexpected error: %v", err)
+	}
+
+	if metadata.ProviderID != "hcloud://bm-321" {
+		t.Fatalf("expected existing provider id to be kept, got %q", metadata.ProviderID)
 	}
 }
 
