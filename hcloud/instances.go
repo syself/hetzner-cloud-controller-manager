@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/addressfamily"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/legacydatacenter"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/providerid"
@@ -31,12 +32,15 @@ import (
 	"k8s.io/klog/v2"
 )
 
-type addressFamily int
+// addressFamily and the AddressFamily constants keep the names this package
+// used before the type moved to internal/addressfamily, where the load
+// balancer code can reach it too.
+type addressFamily = addressfamily.Family
 
 const (
-	AddressFamilyDualStack addressFamily = iota
-	AddressFamilyIPv6
-	AddressFamilyIPv4
+	AddressFamilyDualStack = addressfamily.DualStack
+	AddressFamilyIPv6      = addressfamily.IPv6
+	AddressFamilyIPv4      = addressfamily.IPv4
 )
 
 type instances struct {

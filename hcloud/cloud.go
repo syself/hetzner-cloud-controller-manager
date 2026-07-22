@@ -30,6 +30,7 @@ import (
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/hetznercloud/hcloud-go/v2/hcloud/metadata"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/addressfamily"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/credentials"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
@@ -64,6 +65,7 @@ const (
 	hcloudLoadBalancersDisablePrivateIngress = "HCLOUD_LOAD_BALANCERS_DISABLE_PRIVATE_INGRESS"
 	hcloudLoadBalancersUsePrivateIP          = "HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP"
 	hcloudLoadBalancersDisableIPv6           = "HCLOUD_LOAD_BALANCERS_DISABLE_IPV6"
+	hcloudLoadBalancersRobotTargetFamily     = "HCLOUD_LOAD_BALANCERS_ROBOT_TARGET_ADDRESS_FAMILY"
 	hcloudMetricsEnabledENVVar               = "HCLOUD_METRICS_ENABLED"
 	UseHrobotProviderIDForBaremetalEnvVar    = "HCLOUD_USE_HROBOT_PROVIDER_ID_FOR_BAREMETAL"
 	hcloudMetricsAddress                     = ":8233"
@@ -224,7 +226,10 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 
 	klog.Infof("Hetzner Cloud k8s cloud controller %s started\n", ProviderVersion())
 
-	lbOpsDefaults.DisableIPv6 = lbDisableIPv6
+	lbOpsDefaults.RobotTargetFamily, err = robotTargetFamilyFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
 
 	eventBroadcaster := record.NewBroadcaster()
 	lbRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, corev1.EventSource{Component: "hetzner-ccm-loadbalancer"})
@@ -372,17 +377,28 @@ func addressFamilyFromEnv() (addressFamily, error) {
 		return AddressFamilyIPv4, nil
 	}
 
-	switch strings.ToLower(family) {
-	case "ipv6":
-		return AddressFamilyIPv6, nil
-	case "ipv4":
-		return AddressFamilyIPv4, nil
-	case "dualstack":
-		return AddressFamilyDualStack, nil
-	default:
-		return -1, fmt.Errorf(
-			"%v: Invalid value, expected one of: ipv4,ipv6,dualstack", hcloudInstancesAddressFamily)
+	f, err := addressfamily.Parse(family)
+	if err != nil {
+		return -1, fmt.Errorf("%v: %w", hcloudInstancesAddressFamily, err)
 	}
+	return f, nil
+}
+
+// robotTargetFamilyFromEnv returns the address family used when a dedicated
+// server is added as an IP target of a load balancer. Returns IPv4 if unset,
+// because the load balancer only reaches a node over IPv6 if the cluster
+// network carries IPv6.
+func robotTargetFamilyFromEnv() (addressfamily.Family, error) {
+	family, ok := os.LookupEnv(hcloudLoadBalancersRobotTargetFamily)
+	if !ok {
+		return addressfamily.IPv4, nil
+	}
+
+	f, err := addressfamily.Parse(family)
+	if err != nil {
+		return -1, fmt.Errorf("%v: %w", hcloudLoadBalancersRobotTargetFamily, err)
+	}
+	return f, nil
 }
 
 // getEnvBool returns the boolean parsed from the environment variable with the given key and a potential error
