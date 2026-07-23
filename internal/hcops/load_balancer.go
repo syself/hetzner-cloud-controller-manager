@@ -580,7 +580,7 @@ func (l *LoadBalancerOps) getRobotTargetFamily(svc *corev1.Service) (addressfami
 	}
 	family, err := addressfamily.Parse(v)
 	if err != nil {
-		return -1, fmt.Errorf("%s: %w", annotation.LBRobotTargetAddressFamily, err)
+		return -1, fmt.Errorf("failed to parse %s: %w", annotation.LBRobotTargetAddressFamily, err)
 	}
 	return family, nil
 }

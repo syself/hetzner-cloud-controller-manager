@@ -379,7 +379,7 @@ func addressFamilyFromEnv() (addressFamily, error) {
 
 	f, err := addressfamily.Parse(family)
 	if err != nil {
-		return -1, fmt.Errorf("%v: %w", hcloudInstancesAddressFamily, err)
+		return -1, fmt.Errorf("failed to parse %v: %w", hcloudInstancesAddressFamily, err)
 	}
 	return f, nil
 }
@@ -396,7 +396,7 @@ func robotTargetFamilyFromEnv() (addressfamily.Family, error) {
 
 	f, err := addressfamily.Parse(family)
 	if err != nil {
-		return -1, fmt.Errorf("%v: %w", hcloudLoadBalancersRobotTargetFamily, err)
+		return -1, fmt.Errorf("failed to parse %v: %w", hcloudLoadBalancersRobotTargetFamily, err)
 	}
 	return f, nil
 }
