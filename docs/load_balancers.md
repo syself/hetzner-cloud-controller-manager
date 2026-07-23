@@ -94,6 +94,27 @@ For convenience, you can set the following environment variables as cluster-wide
 * `HCLOUD_LOAD_BALANCERS_DISABLE_PRIVATE_INGRESS`
 * `HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP`
 * `HCLOUD_LOAD_BALANCERS_ENABLED`
+* `HCLOUD_LOAD_BALANCERS_ROBOT_TARGET_ADDRESS_FAMILY`
+
+## Targets for dedicated servers
+
+A dedicated server has no server ID the Load Balancer can point at, so it is
+added as an IP target.
+`HCLOUD_LOAD_BALANCERS_ROBOT_TARGET_ADDRESS_FAMILY` picks which address is used,
+and the `load-balancer.hetzner.cloud/robot-target-address-family` annotation
+overrides it per service. One of `ipv4`, `ipv6` or `dualstack`, default `ipv4`.
+
+Pick the family the cluster network carries. The Load Balancer reaches a node
+over IPv6 only if the pod network and the node ports are up on IPv6, so on an
+IPv4 cluster an IPv6 target never passes its health check.
+
+`dualstack` adds both addresses of the same server. That registers the server
+twice, so it counts twice against the target limit of the Load Balancer type and
+takes a double share of the traffic compared to a cloud server. Use it only if
+you really want both.
+
+This setting is separate from `HCLOUD_LOAD_BALANCERS_DISABLE_IPV6`, which
+controls the public IPv6 address of the Load Balancer itself.
 
 ## Reference existing Load Balancers
 

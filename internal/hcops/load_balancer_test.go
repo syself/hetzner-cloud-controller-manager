@@ -11,6 +11,7 @@ import (
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/addressfamily"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/hcops"
 	"github.com/syself/hrobot-go/models"
@@ -1172,7 +1173,156 @@ func TestLoadBalancerOps_ReconcileHCLBTargets(t *testing.T) {
 				assert.NoError(t, err)
 				assert.True(t, changed)
 			},
-			defaults: hcops.LoadBalancerDefaults{DisableIPv6: false},
+			defaults: hcops.LoadBalancerDefaults{RobotTargetFamily: addressfamily.DualStack},
+		},
+		{
+			name: "add dedicated servers with the ipv4 family only",
+			k8sNodes: []*corev1.Node{
+				{Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-3"}},
+			},
+			initialLB: &hcloud.LoadBalancer{ID: 1},
+			robotServers: []models.Server{
+				{
+					ServerNumber:  3,
+					ServerIP:      "1.2.3.4",
+					ServerIPv6Net: "2a01:f48:111:4221::",
+				},
+			},
+			mock: func(_ *testing.T, tt *LBReconcilementTestCase) {
+				optsIP := hcloud.LoadBalancerAddIPTargetOpts{IP: net.ParseIP("1.2.3.4")}
+				action := tt.fx.MockAddIPTarget(tt.initialLB, optsIP, nil)
+				tt.fx.MockWatchProgress(action, nil)
+
+				tt.fx.MockListRobotServers(tt.robotServers, nil)
+			},
+			perform: func(t *testing.T, tt *LBReconcilementTestCase) {
+				changed, err := tt.fx.LBOps.ReconcileHCLBTargets(tt.fx.Ctx, tt.initialLB, tt.service, tt.k8sNodes)
+				assert.NoError(t, err)
+				assert.True(t, changed)
+			},
+			defaults: hcops.LoadBalancerDefaults{RobotTargetFamily: addressfamily.IPv4},
+		},
+		{
+			name: "remove the ipv6 target of a dedicated server when the family is ipv4",
+			k8sNodes: []*corev1.Node{
+				{Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-3"}},
+			},
+			initialLB: &hcloud.LoadBalancer{
+				ID: 1,
+				Targets: []hcloud.LoadBalancerTarget{
+					{
+						Type: hcloud.LoadBalancerTargetTypeIP,
+						IP:   &hcloud.LoadBalancerTargetIP{IP: "1.2.3.4"},
+					},
+					{
+						Type: hcloud.LoadBalancerTargetTypeIP,
+						IP:   &hcloud.LoadBalancerTargetIP{IP: "2a01:f48:111:4221::1"},
+					},
+				},
+			},
+			robotServers: []models.Server{
+				{
+					ServerNumber:  3,
+					ServerIP:      "1.2.3.4",
+					ServerIPv6Net: "2a01:f48:111:4221::",
+				},
+			},
+			mock: func(_ *testing.T, tt *LBReconcilementTestCase) {
+				// The IPv4 target stays, only the IPv6 one goes away.
+				action := tt.fx.MockRemoveIPTarget(tt.initialLB, net.ParseIP("2a01:f48:111:4221::1"), nil)
+				tt.fx.MockWatchProgress(action, nil)
+
+				tt.fx.MockListRobotServers(tt.robotServers, nil)
+			},
+			perform: func(t *testing.T, tt *LBReconcilementTestCase) {
+				changed, err := tt.fx.LBOps.ReconcileHCLBTargets(tt.fx.Ctx, tt.initialLB, tt.service, tt.k8sNodes)
+				assert.NoError(t, err)
+				assert.True(t, changed)
+			},
+			defaults: hcops.LoadBalancerDefaults{RobotTargetFamily: addressfamily.IPv4},
+		},
+		{
+			name: "add dedicated servers with the ipv6 family only",
+			k8sNodes: []*corev1.Node{
+				{Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-3"}},
+			},
+			initialLB: &hcloud.LoadBalancer{ID: 1},
+			robotServers: []models.Server{
+				{
+					ServerNumber:  3,
+					ServerIP:      "1.2.3.4",
+					ServerIPv6Net: "2a01:f48:111:4221::",
+				},
+			},
+			mock: func(_ *testing.T, tt *LBReconcilementTestCase) {
+				optsIP := hcloud.LoadBalancerAddIPTargetOpts{IP: net.ParseIP("2a01:f48:111:4221::1")}
+				action := tt.fx.MockAddIPTarget(tt.initialLB, optsIP, nil)
+				tt.fx.MockWatchProgress(action, nil)
+
+				tt.fx.MockListRobotServers(tt.robotServers, nil)
+			},
+			perform: func(t *testing.T, tt *LBReconcilementTestCase) {
+				changed, err := tt.fx.LBOps.ReconcileHCLBTargets(tt.fx.Ctx, tt.initialLB, tt.service, tt.k8sNodes)
+				assert.NoError(t, err)
+				assert.True(t, changed)
+			},
+			defaults: hcops.LoadBalancerDefaults{RobotTargetFamily: addressfamily.IPv6},
+		},
+		{
+			name: "annotation overrides the default target family",
+			k8sNodes: []*corev1.Node{
+				{Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-3"}},
+			},
+			serviceAnnotations: map[annotation.Name]interface{}{
+				annotation.LBRobotTargetAddressFamily: "dualstack",
+			},
+			initialLB: &hcloud.LoadBalancer{ID: 1},
+			robotServers: []models.Server{
+				{
+					ServerNumber:  3,
+					ServerIP:      "1.2.3.4",
+					ServerIPv6Net: "2a01:f48:111:4221::",
+				},
+			},
+			mock: func(_ *testing.T, tt *LBReconcilementTestCase) {
+				optsIP := hcloud.LoadBalancerAddIPTargetOpts{IP: net.ParseIP("1.2.3.4")}
+				action := tt.fx.MockAddIPTarget(tt.initialLB, optsIP, nil)
+				tt.fx.MockWatchProgress(action, nil)
+
+				optsIP = hcloud.LoadBalancerAddIPTargetOpts{IP: net.ParseIP("2a01:f48:111:4221::1")}
+				action = tt.fx.MockAddIPTarget(tt.initialLB, optsIP, nil)
+				tt.fx.MockWatchProgress(action, nil)
+
+				tt.fx.MockListRobotServers(tt.robotServers, nil)
+			},
+			perform: func(t *testing.T, tt *LBReconcilementTestCase) {
+				changed, err := tt.fx.LBOps.ReconcileHCLBTargets(tt.fx.Ctx, tt.initialLB, tt.service, tt.k8sNodes)
+				assert.NoError(t, err)
+				assert.True(t, changed)
+			},
+			defaults: hcops.LoadBalancerDefaults{RobotTargetFamily: addressfamily.IPv4},
+		},
+		{
+			name: "skip a dedicated server that has no address of the wanted family",
+			k8sNodes: []*corev1.Node{
+				{Spec: corev1.NodeSpec{ProviderID: "hcloud://bm-3"}},
+			},
+			initialLB: &hcloud.LoadBalancer{ID: 1},
+			robotServers: []models.Server{
+				{
+					ServerNumber: 3,
+					ServerIP:     "1.2.3.4",
+				},
+			},
+			mock: func(_ *testing.T, tt *LBReconcilementTestCase) {
+				tt.fx.MockListRobotServers(tt.robotServers, nil)
+			},
+			perform: func(t *testing.T, tt *LBReconcilementTestCase) {
+				changed, err := tt.fx.LBOps.ReconcileHCLBTargets(tt.fx.Ctx, tt.initialLB, tt.service, tt.k8sNodes)
+				assert.NoError(t, err)
+				assert.False(t, changed)
+			},
+			defaults: hcops.LoadBalancerDefaults{RobotTargetFamily: addressfamily.IPv6},
 		},
 		{
 			name: "remove unused k8s nodes from hc Load Balancer",
@@ -1234,14 +1384,14 @@ func TestLoadBalancerOps_ReconcileHCLBTargets(t *testing.T) {
 				assert.NoError(t, err)
 				assert.True(t, changed)
 			},
-			defaults: hcops.LoadBalancerDefaults{DisableIPv6: true},
+			defaults: hcops.LoadBalancerDefaults{RobotTargetFamily: addressfamily.IPv4},
 		},
 		{
 			name: "enable use of private network via default",
 			defaults: hcops.LoadBalancerDefaults{
 				// Make sure the annotation overrides the default
-				UsePrivateIP: true,
-				DisableIPv6:  true,
+				UsePrivateIP:      true,
+				RobotTargetFamily: addressfamily.IPv4,
 			},
 			k8sNodes: []*corev1.Node{
 				{Spec: corev1.NodeSpec{ProviderID: "hcloud://1"}},
@@ -1273,8 +1423,8 @@ func TestLoadBalancerOps_ReconcileHCLBTargets(t *testing.T) {
 			name: "enable use of private network via annotation",
 			defaults: hcops.LoadBalancerDefaults{
 				// Make sure the annotation overrides the default
-				UsePrivateIP: false,
-				DisableIPv6:  true,
+				UsePrivateIP:      false,
+				RobotTargetFamily: addressfamily.IPv4,
 			},
 			k8sNodes: []*corev1.Node{
 				{Spec: corev1.NodeSpec{ProviderID: "hcloud://1"}},
@@ -1309,8 +1459,8 @@ func TestLoadBalancerOps_ReconcileHCLBTargets(t *testing.T) {
 			name: "disable use of private network via annotation",
 			defaults: hcops.LoadBalancerDefaults{
 				// Make sure the annotation overrides the default
-				UsePrivateIP: true,
-				DisableIPv6:  true,
+				UsePrivateIP:      true,
+				RobotTargetFamily: addressfamily.IPv4,
 			},
 			k8sNodes: []*corev1.Node{
 				{Spec: corev1.NodeSpec{ProviderID: "hcloud://1"}},

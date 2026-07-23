@@ -36,6 +36,18 @@ const (
 	// Default: false.
 	LBIPv6Disabled Name = "load-balancer.hetzner.cloud/ipv6-disabled"
 
+	// LBRobotTargetAddressFamily picks the address family used when a dedicated
+	// server is added as an IP target of the Load Balancer.
+	//
+	// The Load Balancer only reaches a node over IPv6 if the cluster network
+	// carries IPv6, so on an IPv4 cluster an IPv6 target never passes its
+	// health check. Adding both families also registers the same server twice,
+	// which counts twice against the target limit and gives it a double share
+	// of the traffic.
+	//
+	// One of: ipv4, ipv6, dualstack. Default: ipv4.
+	LBRobotTargetAddressFamily Name = "load-balancer.hetzner.cloud/robot-target-address-family"
+
 	// LBName is the name of the Load Balancer. The name will be visible in
 	// the Hetzner Cloud API console.
 	LBName Name = "load-balancer.hetzner.cloud/name"

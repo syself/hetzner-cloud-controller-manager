@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/v2/hcloud"
+	"github.com/syself/hetzner-cloud-controller-manager/internal/addressfamily"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/annotation"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	"github.com/syself/hetzner-cloud-controller-manager/internal/providerid"
@@ -86,7 +87,12 @@ type LoadBalancerDefaults struct {
 	Location     string
 	NetworkZone  string
 	UsePrivateIP bool
-	DisableIPv6  bool
+
+	// RobotTargetFamily picks the address family used when a dedicated server
+	// is added as an IP target. It is unrelated to the public IPv6 address of
+	// the load balancer itself, which HCLOUD_LOAD_BALANCERS_DISABLE_IPV6
+	// controls.
+	RobotTargetFamily addressfamily.Family
 }
 
 // GetByK8SServiceUID tries to find a Load Balancer by its Kubernetes service
@@ -567,15 +573,32 @@ func (l *LoadBalancerOps) togglePublicInterface(ctx context.Context, lb *hcloud.
 	return true, nil
 }
 
-func (l *LoadBalancerOps) getDisableIPv6(svc *corev1.Service) (bool, error) {
-	disable, err := annotation.LBIPv6Disabled.BoolFromService(svc)
-	if err == nil {
-		return disable, nil
+func (l *LoadBalancerOps) getRobotTargetFamily(svc *corev1.Service) (addressfamily.Family, error) {
+	v, ok := annotation.LBRobotTargetAddressFamily.StringFromService(svc)
+	if !ok {
+		return l.Defaults.RobotTargetFamily, nil
 	}
-	if errors.Is(err, annotation.ErrNotSet) {
-		return l.Defaults.DisableIPv6, nil
+	family, err := addressfamily.Parse(v)
+	if err != nil {
+		return -1, fmt.Errorf("failed to parse %s: %w", annotation.LBRobotTargetAddressFamily, err)
 	}
-	return false, err
+	return family, nil
+}
+
+// robotTargetIPs returns the addresses of a dedicated server that are used as
+// IP targets of a load balancer. A server contributes at most one address per
+// family, and none if the address is missing.
+func robotTargetIPs(family addressfamily.Family, s models.Server) []string {
+	var ips []string
+	if family.UsesIPv4() && s.ServerIP != "" {
+		ips = append(ips, s.ServerIP)
+	}
+	// The robot API reports the IPv6 network of a server, for example
+	// 2a01:f48:111:4221::. The server answers on its first address.
+	if family.UsesIPv6() && s.ServerIPv6Net != "" {
+		ips = append(ips, s.ServerIPv6Net+"1")
+	}
+	return ips
 }
 
 // ReconcileHCLBTargets adds or removes target nodes from the Hetzner Cloud
@@ -594,8 +617,7 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 		k8sNodeNames     = make(map[int64]string)
 
 		robotIPsToIDs = make(map[string]int)
-		robotIDToIPv4 = make(map[int]string)
-		robotIDToIPv6 = make(map[int]string)
+		robotIDToIPs  = make(map[int][]string)
 		// Set of server IDs assigned as targets to the HC Load Balancer. Some
 		// of the entries may get deleted during reconcilement. In this case
 		// the hclbTargetIDs[id] is always false. If hclbTargetIDs[id] is true,
@@ -611,7 +633,7 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 		changed bool
 	)
 
-	disableIPv6, err := l.getDisableIPv6(svc)
+	robotTargetFamily, err := l.getRobotTargetFamily(svc)
 	if err != nil {
 		return changed, fmt.Errorf("%s: %w", op, err)
 	}
@@ -661,11 +683,15 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 		}
 	}
 
+	// Only the addresses of the configured family count as wanted targets. An
+	// existing target of the other family is not found below, so it is removed
+	// from the load balancer.
 	for _, s := range dedicatedServers {
-		robotIPsToIDs[s.ServerIP] = s.ServerNumber
-		robotIPsToIDs[s.ServerIPv6Net+"1"] = s.ServerNumber
-		robotIDToIPv4[s.ServerNumber] = s.ServerIP
-		robotIDToIPv6[s.ServerNumber] = s.ServerIPv6Net + "1"
+		ips := robotTargetIPs(robotTargetFamily, s)
+		robotIDToIPs[s.ServerNumber] = ips
+		for _, ip := range ips {
+			robotIPsToIDs[ip] = s.ServerNumber
+		}
 	}
 
 	numberOfTargets := len(lb.Targets)
@@ -771,26 +797,22 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 	// Assign the dedicated servers which are currently assigned as nodes
 	// to the K8S Load Balancer as IP targets to the HC Load Balancer.
 	for id := range k8sNodeIDsRobot {
-		var arr []string
-		if disableIPv6 {
-			arr = []string{
-				robotIDToIPv4[id],
-			}
-		} else {
-			arr = []string{
-				robotIDToIPv4[id],
-				robotIDToIPv6[id],
-			}
+		ips := robotIDToIPs[id]
+		if len(ips) == 0 {
+			klog.InfoS("k8s node found but no corresponding server in robot", "id", id)
+			continue
 		}
 
-		for _, ip := range arr {
+		for _, ip := range ips {
 			// Don't assign the node again if it is already assigned to the HC load
 			// balancer.
 			if hclbTargetIPs[ip] {
 				continue
 			}
-			if ip == "" {
-				klog.InfoS("k8s node found but no corresponding server in robot", "id", id)
+
+			targetIP := net.ParseIP(ip)
+			if targetIP == nil {
+				klog.InfoS("robot server has an address that is not an IP", "op", op, "id", id, "ip", ip)
 				continue
 			}
 
@@ -806,7 +828,7 @@ func (l *LoadBalancerOps) ReconcileHCLBTargets(
 
 			klog.InfoS("add target", "op", op, "service", svc.Name, "targetName", k8sNodeNames[int64(id)], "ip", ip)
 			opts := hcloud.LoadBalancerAddIPTargetOpts{
-				IP: net.ParseIP(ip),
+				IP: targetIP,
 			}
 			a, _, err := l.LBClient.AddIPTarget(ctx, lb, opts)
 			if err != nil {
