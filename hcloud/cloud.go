@@ -362,7 +362,7 @@ func serverIsAttachedToNetwork(metadataClient *metadata.Client, networkID int64)
 	const op = "serverIsAttachedToNetwork"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
 
-	serverPrivateNetworks, err := metadataClient.PrivateNetworksWithContext(context.TODO())
+	serverPrivateNetworks, err := metadataClient.PrivateNetworksWithContext(context.Background())
 	if err != nil {
 		return false, fmt.Errorf("%s: %s", op, err)
 	}
