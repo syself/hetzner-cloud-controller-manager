@@ -66,6 +66,7 @@ const (
 	hcloudLoadBalancersUsePrivateIP          = "HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP"
 	hcloudLoadBalancersDisableIPv6           = "HCLOUD_LOAD_BALANCERS_DISABLE_IPV6"
 	hcloudLoadBalancersRobotTargetFamily     = "HCLOUD_LOAD_BALANCERS_ROBOT_TARGET_ADDRESS_FAMILY"
+	hcloudLoadBalancersRestrictNodePortSrc   = "HCLOUD_LOAD_BALANCERS_RESTRICT_NODE_PORT_SOURCE"
 	hcloudMetricsEnabledENVVar               = "HCLOUD_METRICS_ENABLED"
 	UseHrobotProviderIDForBaremetalEnvVar    = "HCLOUD_USE_HROBOT_PROVIDER_ID_FOR_BAREMETAL"
 	hcloudMetricsAddress                     = ":8233"
@@ -245,7 +246,12 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 		Defaults:      lbOpsDefaults,
 	}
 
-	loadBalancers := newLoadBalancers(lbOps, &hcloudClient.Action, lbDisablePrivateIngress, lbDisableIPv6)
+	lbRestrictNodePortSource, err := getEnvBool(hcloudLoadBalancersRestrictNodePortSrc)
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	loadBalancers := newLoadBalancers(lbOps, &hcloudClient.Action, lbDisablePrivateIngress, lbDisableIPv6, lbRestrictNodePortSource)
 	if os.Getenv(hcloudLoadBalancersEnabledENVVar) == "false" {
 		loadBalancers = nil
 	}
@@ -278,7 +284,14 @@ func newCloud(_ io.Reader) (cloudprovider.Interface, error) {
 	}, nil
 }
 
-func (c *cloud) Initialize(_ cloudprovider.ControllerClientBuilder, _ <-chan struct{}) {
+func (c *cloud) Initialize(clientBuilder cloudprovider.ControllerClientBuilder, _ <-chan struct{}) {
+	if c.loadBalancer == nil || clientBuilder == nil {
+		return
+	}
+	// The service controller only writes Service status and metadata. Limiting
+	// a NodePort to its Load Balancer changes the Service spec, which needs a
+	// client of its own.
+	c.loadBalancer.k8sClient = clientBuilder.ClientOrDie("hcloud-node-port-source")
 }
 
 func (c *cloud) Instances() (cloudprovider.Instances, bool) {
