@@ -2,6 +2,7 @@ package hcloud
 
 import (
 	"context"
+	"errors"
 	"net"
 	"testing"
 
@@ -14,6 +15,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
@@ -135,7 +137,7 @@ func getService(t *testing.T, client *fake.Clientset) *corev1.Service {
 func countUpdates(client *fake.Clientset) int {
 	n := 0
 	for _, a := range client.Actions() {
-		if a.GetVerb() == "update" {
+		if a.GetVerb() == "update" || a.GetVerb() == "patch" {
 			n++
 		}
 	}
@@ -218,6 +220,36 @@ func TestReconcileNodePortSource(t *testing.T) {
 			expUpdates: 0,
 		},
 		{
+			name:       "empty annotation falls back to env",
+			envDefault: true,
+			svc:        testService(map[string]string{restrict: ""}),
+			expRanges:  []string{"1.2.3.4/32"},
+			expManaged: "1.2.3.4/32",
+			expUpdates: 1,
+		},
+		{
+			name:       "cilium deny-list is left alone",
+			envDefault: true,
+			svc:        testService(map[string]string{ciliumSourceRangesPolicy: "Deny"}, "203.0.113.0/24"),
+			expRanges:  []string{"203.0.113.0/24"},
+			expUpdates: 0,
+		},
+		{
+			name:       "cilium deny-list removes entries added before",
+			envDefault: true,
+			svc: testService(map[string]string{ciliumSourceRangesPolicy: "deny", managed: "1.2.3.4/32"},
+				"203.0.113.0/24", "1.2.3.4/32"),
+			expRanges:  []string{"203.0.113.0/24"},
+			expUpdates: 1,
+		},
+		{
+			name:       "other spelling of the load balancer IP is the customer's",
+			envDefault: true,
+			svc:        testService(nil, " 1.2.3.4/32"),
+			expRanges:  []string{" 1.2.3.4/32"},
+			expUpdates: 0,
+		},
+		{
 			name:       "load balancer IP changed",
 			envDefault: true,
 			svc:        testService(map[string]string{managed: "9.9.9.9/32"}, "10.0.0.0/8", "9.9.9.9/32"),
@@ -277,7 +309,7 @@ func TestReconcileNodePortSource_RetriesOnConflict(t *testing.T) {
 	svc := testService(nil)
 	client := fake.NewClientset(svc.DeepCopy())
 	conflicts := 1
-	client.PrependReactor("update", "services", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+	client.PrependReactor("patch", "services", func(_ k8stesting.Action) (bool, runtime.Object, error) {
 		if conflicts > 0 {
 			conflicts--
 			return true, nil, apierrors.NewConflict(schema.GroupResource{Resource: "services"}, "web", nil)
@@ -364,6 +396,72 @@ func TestLoadBalancers_EnsureLoadBalancer_RestrictsNodePortSource(t *testing.T) 
 				got := getService(t, client)
 				assert.Equal(t, []string{"1.2.3.4/32"}, got.Spec.LoadBalancerSourceRanges)
 				assert.Equal(t, "1.2.3.4/32", got.Annotations[string(annotation.LBNodePortSourceRanges)])
+			},
+		},
+	}
+
+	RunLoadBalancerTests(t, tests)
+}
+
+func TestSameCIDR(t *testing.T) {
+	assert.True(t, sameCIDR("1.2.3.4/32", " 1.2.3.4/32 "))
+	assert.True(t, sameCIDR("10.0.0.1/8", "10.0.0.0/8"))
+	assert.False(t, sameCIDR("1.2.3.4/32", "1.2.3.5/32"))
+	assert.False(t, sameCIDR("1.2.3.4/32", "1.2.3.4/31"))
+	assert.True(t, sameCIDR("not-a-cidr", "not-a-cidr"))
+}
+
+func TestReconcileNodePortSource_PatchShape(t *testing.T) {
+	svc := testService(nil)
+	svc.Spec.ExternalIPs = []string{"198.51.100.7"}
+	client := fake.NewClientset(svc.DeepCopy())
+	l := newLoadBalancers(nil, nil, false, false, true)
+	l.k8sClient = client
+
+	require.NoError(t, l.reconcileNodePortSource(context.Background(), svc, testLB()))
+
+	var patches []k8stesting.PatchAction
+	for _, a := range client.Actions() {
+		if p, ok := a.(k8stesting.PatchAction); ok {
+			patches = append(patches, p)
+		}
+	}
+	require.Len(t, patches, 1)
+	assert.Equal(t, types.MergePatchType, patches[0].GetPatchType())
+	assert.NotContains(t, string(patches[0].GetPatch()), "externalIPs")
+	// Fields the patch does not name survive.
+	assert.Equal(t, []string{"198.51.100.7"}, getService(t, client).Spec.ExternalIPs)
+}
+
+func TestNodePortSourcePatch_RemovesEmpty(t *testing.T) {
+	p, err := nodePortSourcePatch("42", nil, "")
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"metadata":{"resourceVersion":"42","annotations":{"load-balancer.hetzner.cloud/node-port-source-ranges":null}},"spec":{"loadBalancerSourceRanges":null}}`, string(p))
+}
+
+func TestLoadBalancers_EnsureLoadBalancerDeleted_CleanupIsBestEffort(t *testing.T) {
+	tests := []LoadBalancerTestCase{
+		{
+			Name:       "rejected cleanup does not block the delete",
+			ServiceUID: "np-del",
+			ServiceAnnotations: map[annotation.Name]interface{}{
+				annotation.LBNodePortSourceRanges: "1.2.3.4/32",
+			},
+			LB: &hcloud.LoadBalancer{ID: 1, Name: "np-del"},
+			Mock: func(_ *testing.T, tt *LoadBalancerTestCase) {
+				tt.Service.Name = "web"
+				tt.Service.Namespace = "default"
+				tt.LBOps.On("GetByK8SServiceUID", tt.Ctx, tt.Service).Return(tt.LB, nil)
+				tt.LBOps.On("Delete", tt.Ctx, tt.LB).Return(nil)
+			},
+			Perform: func(t *testing.T, tt *LoadBalancerTestCase) {
+				client := fake.NewClientset(tt.Service.DeepCopy())
+				client.PrependReactor("patch", "services", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+					return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "services"}, "web", errors.New("denied by policy"))
+				})
+				tt.LoadBalancers.k8sClient = client
+
+				assert.NoError(t, tt.LoadBalancers.EnsureLoadBalancerDeleted(tt.Ctx, tt.ClusterName, tt.Service))
 			},
 		},
 	}

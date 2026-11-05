@@ -140,8 +140,20 @@ Entries already on the Service are kept. The entries the cloud controller
 manager added are recorded in the read-only
 `load-balancer.hetzner.cloud/node-port-source-ranges` annotation. With that, it
 replaces them when the Load Balancer's IP changes, and removes them when the
-annotation is set to `"false"` or the Service stops being of type `LoadBalancer`.
-The annotation overrides the environment variable in both directions.
+annotation is set to `"false"` or the Load Balancer is deleted. The annotation
+overrides the environment variable in both directions; an empty value counts as
+unset. The writes show up in `managedFields` as `hcloud-ccm-node-port-source`.
+
+Changing the Service type: the API server only allows
+`loadBalancerSourceRanges` on Services of type `LoadBalancer`, so a request that
+only changes the type is rejected while the field is set. Remove the field in
+the same request (for example with a merge patch setting
+`"loadBalancerSourceRanges": null`), or set the annotation to `"false"` first
+and wait for the controller to remove its entries.
+
+Services with the Cilium annotation `service.cilium.io/src-ranges-policy: deny`
+are skipped: Cilium treats their ranges as a deny-list, and adding the Load
+Balancer there would block it.
 
 The cloud controller manager only writes the field. Your Service proxy has to
 apply it to the NodePort:
@@ -159,8 +171,19 @@ sees the Load Balancer's IP as the source. Client CIDRs in
 `loadBalancerSourceRanges` therefore never match. To filter by client IP, enable
 the [Proxy Protocol](#proxy-protocol) and filter in the ingress controller.
 
+What changes for existing Services when the feature is turned on:
+
+* A Service that lists only client CIDRs was unreachable through the Load
+  Balancer before (the node sees the Load Balancer's IP, which is not listed).
+  With the Load Balancer added, it works again, for every client.
+* With Cilium's `bpf.lbSourceRangeAllTypes=true`, the ranges also apply to the
+  Service's `spec.externalIPs`. Direct access to those addresses, and to UDP
+  NodePorts, is limited to the Load Balancer too.
+
 The NodePort is open from the moment the Service is created until the Load
-Balancer exists and its IP has been written, usually seconds.
+Balancer exists and its IP has been written, usually seconds. The ranges are
+written at the end of each Load Balancer sync, so if an earlier step of the
+sync fails, the NodePort stays open until a later sync succeeds.
 
 ## Reference existing Load Balancers
 

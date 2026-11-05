@@ -349,16 +349,27 @@ func (l *loadBalancers) EnsureLoadBalancerDeleted(ctx context.Context, _ string,
 	const op = "hcloud/loadBalancers.EnsureLoadBalancerDeleted"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
 
-	if err := l.removeNodePortSource(ctx, service); err != nil {
+	if err := l.deleteLoadBalancer(ctx, service); err != nil {
 		return fmt.Errorf("%s: %w", op, err)
 	}
+
+	// Best effort, after the Load Balancer is gone: a rejected Service update
+	// must not keep the Load Balancer or the Service finalizer around.
+	if err := l.removeNodePortSource(ctx, service); err != nil {
+		klog.ErrorS(err, "remove NodePort source ranges", "op", op, "service", service.Name, "namespace", service.Namespace)
+	}
+	return nil
+}
+
+func (l *loadBalancers) deleteLoadBalancer(ctx context.Context, service *corev1.Service) error {
+	const op = "hcloud/loadBalancers.deleteLoadBalancer"
 
 	loadBalancer, err := l.lbOps.GetByK8SServiceUID(ctx, service)
 	if errors.Is(err, hcops.ErrNotFound) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
+		return err
 	}
 
 	if loadBalancer.Protection.Delete {
@@ -371,9 +382,5 @@ func (l *loadBalancers) EnsureLoadBalancerDeleted(ctx context.Context, _ string,
 	if errors.Is(err, hcops.ErrNotFound) {
 		return nil
 	}
-	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
-	return nil
+	return err
 }
