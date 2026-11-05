@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/syself/hetzner-cloud-controller-manager/internal/credentials"
@@ -24,6 +25,10 @@ const (
 var _ robotclient.Client = &cacheRobotClient{}
 
 type cacheRobotClient struct {
+	// mu guards every field below. The service, node and route controllers
+	// call the client from several goroutines at once.
+	mu sync.Mutex
+
 	robotClient hrobot.RobotClient
 	timeout     time.Duration
 
@@ -98,23 +103,11 @@ func NewCachedRobotClient(rootDir string, httpClient *http.Client, baseURL strin
 }
 
 func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
-	if c.shouldSync() {
-		list, err := c.robotClient.ServerGetList()
-		if err != nil {
-			return nil, err
-		}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-		// populate list
-		c.l = list
-
-		// remove all entries from map and populate it freshly
-		c.m = make(map[int]*models.Server)
-		for i, server := range list {
-			c.m[server.ServerNumber] = &list[i]
-		}
-
-		// set time of last update
-		c.lastUpdate = c.currentTime()
+	if err := c.syncIfNeeded(); err != nil {
+		return nil, err
 	}
 
 	server, found := c.m[id]
@@ -127,25 +120,12 @@ func (c *cacheRobotClient) ServerGet(id int) (*models.Server, error) {
 }
 
 func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
-	if c.shouldSync() {
-		list, err := c.robotClient.ServerGetList()
-		if err != nil {
-			return list, err
-		}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
-		// populate list
-		c.l = list
-
-		// remove all entries from map and populate it freshly
-		c.m = make(map[int]*models.Server)
-		for i, server := range list {
-			c.m[server.ServerNumber] = &list[i]
-		}
-
-		// set time of last update
-		c.lastUpdate = c.currentTime()
+	if err := c.syncIfNeeded(); err != nil {
+		return nil, err
 	}
-
 	return c.l, nil
 }
 
@@ -153,28 +133,57 @@ func (c *cacheRobotClient) ServerGetList() ([]models.Server, error) {
 // from Robot unless nodeName already triggered a forced refresh within the
 // current timeout window.
 func (c *cacheRobotClient) ServerGetListForceRefresh(nodeName string) ([]models.Server, error) {
-	if nodeName != "" && c.nodeHasAlreadyForcedRefresh(nodeName) {
-		return c.ServerGetList()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	force := nodeName == "" || !c.nodeHasAlreadyForcedRefresh(nodeName)
+	if force {
+		// Drop the cached list, so the sync below calls the Robot API.
+		c.m = nil
 	}
 
-	// setting cache of serverId to serverName mapping to nil, so that the next ServerGetList() will
-	// call the robot API to get the new data.
-	c.m = nil
-
-	list, err := c.ServerGetList()
-	if err != nil {
+	if err := c.syncIfNeeded(); err != nil {
 		return nil, err
 	}
 
-	if nodeName != "" {
+	if force && nodeName != "" {
+		if c.forcedRefreshServerNames == nil {
+			c.forcedRefreshServerNames = make(map[string]time.Time)
+		}
 		c.forcedRefreshServerNames[nodeName] = c.currentTime()
 	}
 
-	return list, nil
+	return c.l, nil
+}
+
+// syncIfNeeded reloads the server list from Robot when the cache is empty or
+// expired. The caller must hold c.mu, so concurrent callers share one Robot
+// API call instead of each sending their own. The list and map are replaced,
+// never modified, so callers may keep using what they got earlier.
+func (c *cacheRobotClient) syncIfNeeded() error {
+	if !c.shouldSync() {
+		return nil
+	}
+
+	list, err := c.robotClient.ServerGetList()
+	if err != nil {
+		return err
+	}
+
+	m := make(map[int]*models.Server, len(list))
+	for i, server := range list {
+		m[server.ServerNumber] = &list[i]
+	}
+
+	c.l = list
+	c.m = m
+	c.lastUpdate = c.currentTime()
+	return nil
 }
 
 // nodeHasAlreadyForcedRefresh reports whether nodeName already triggered a
-// forced refresh within the current cache timeout window.
+// forced refresh within the current cache timeout window. The caller must hold
+// c.mu.
 func (c *cacheRobotClient) nodeHasAlreadyForcedRefresh(nodeName string) bool {
 	if c.forcedRefreshServerNames == nil {
 		return false
@@ -195,7 +204,6 @@ func (c *cacheRobotClient) nodeHasAlreadyForcedRefresh(nodeName string) bool {
 func (c *cacheRobotClient) shouldSync() bool {
 	// map is nil means we have no cached value yet
 	if c.m == nil {
-		c.m = make(map[int]*models.Server)
 		return true
 	}
 	if c.currentTime().After(c.lastUpdate.Add(c.timeout)) {
@@ -219,12 +227,15 @@ func (c *cacheRobotClient) forceRefreshTimeout() time.Duration {
 }
 
 func (c *cacheRobotClient) SetCredentials(username, password string) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	err := c.robotClient.SetCredentials(username, password)
 	if err != nil {
 		return err
 	}
 	// The credentials have been updated, so we need to invalidate the cache.
 	c.m = nil
-	c.forcedRefreshServerNames = nil
+	c.forcedRefreshServerNames = make(map[string]time.Time)
 	return nil
 }
