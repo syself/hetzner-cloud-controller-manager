@@ -11,6 +11,7 @@ import (
 	"github.com/syself/hetzner-cloud-controller-manager/internal/metrics"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
+	"k8s.io/client-go/kubernetes"
 	cloudprovider "k8s.io/cloud-provider"
 	"k8s.io/klog/v2"
 )
@@ -33,14 +34,26 @@ type loadBalancers struct {
 	ac                           hcops.HCloudActionClient // Deprecated: should only be referenced by hcops types
 	disablePrivateIngressDefault bool
 	disableIPv6Default           bool
+
+	// restrictNodePortSourceDefault limits each Service's NodePort to its
+	// Load Balancer unless the Service's annotation says otherwise.
+	restrictNodePortSourceDefault bool
+
+	// k8sClient updates Service specs. It is set in cloud.Initialize and is
+	// nil until then.
+	k8sClient kubernetes.Interface
 }
 
-func newLoadBalancers(lbOps LoadBalancerOps, ac hcops.HCloudActionClient, disablePrivateIngressDefault, disableIPv6Default bool) *loadBalancers {
+func newLoadBalancers(
+	lbOps LoadBalancerOps, ac hcops.HCloudActionClient,
+	disablePrivateIngressDefault, disableIPv6Default, restrictNodePortSourceDefault bool,
+) *loadBalancers {
 	return &loadBalancers{
-		lbOps:                        lbOps,
-		ac:                           ac,
-		disablePrivateIngressDefault: disablePrivateIngressDefault,
-		disableIPv6Default:           disableIPv6Default,
+		lbOps:                         lbOps,
+		ac:                            ac,
+		disablePrivateIngressDefault:  disablePrivateIngressDefault,
+		disableIPv6Default:            disableIPv6Default,
+		restrictNodePortSourceDefault: restrictNodePortSourceDefault,
 	}
 }
 
@@ -175,6 +188,10 @@ func (l *loadBalancers) EnsureLoadBalancer(
 	}
 
 	if err := annotation.LBToService(service, lb); err != nil {
+		return nil, fmt.Errorf("%s: %w", op, err)
+	}
+
+	if err := l.reconcileNodePortSource(ctx, service, lb); err != nil {
 		return nil, fmt.Errorf("%s: %w", op, err)
 	}
 	return l.getLBStatus(lb, service, op)
@@ -332,12 +349,27 @@ func (l *loadBalancers) EnsureLoadBalancerDeleted(ctx context.Context, _ string,
 	const op = "hcloud/loadBalancers.EnsureLoadBalancerDeleted"
 	metrics.OperationCalled.WithLabelValues(op).Inc()
 
+	if err := l.deleteLoadBalancer(ctx, service); err != nil {
+		return fmt.Errorf("%s: %w", op, err)
+	}
+
+	// Best effort, after the Load Balancer is gone: a rejected Service update
+	// must not keep the Load Balancer or the Service finalizer around.
+	if err := l.removeNodePortSource(ctx, service); err != nil {
+		klog.ErrorS(err, "remove NodePort source ranges", "op", op, "service", service.Name, "namespace", service.Namespace)
+	}
+	return nil
+}
+
+func (l *loadBalancers) deleteLoadBalancer(ctx context.Context, service *corev1.Service) error {
+	const op = "hcloud/loadBalancers.deleteLoadBalancer"
+
 	loadBalancer, err := l.lbOps.GetByK8SServiceUID(ctx, service)
 	if errors.Is(err, hcops.ErrNotFound) {
 		return nil
 	}
 	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
+		return err
 	}
 
 	if loadBalancer.Protection.Delete {
@@ -350,9 +382,5 @@ func (l *loadBalancers) EnsureLoadBalancerDeleted(ctx context.Context, _ string,
 	if errors.Is(err, hcops.ErrNotFound) {
 		return nil
 	}
-	if err != nil {
-		return fmt.Errorf("%s: %w", op, err)
-	}
-
-	return nil
+	return err
 }

@@ -36,6 +36,35 @@ const (
 	// Default: false.
 	LBIPv6Disabled Name = "load-balancer.hetzner.cloud/ipv6-disabled"
 
+	// LBRestrictNodePortSource limits the Service's NodePort to the Load
+	// Balancer's own IPs. The cloud controller manager adds the Load Balancer
+	// IPs as /32 entries to spec.loadBalancerSourceRanges and keeps any other
+	// entries the Service already has.
+	//
+	// The Load Balancer targets the NodePort on every node. Without a private
+	// network and a firewall in front of the nodes, that NodePort is also
+	// reachable directly on each node's public IP. Restricting it to the Load
+	// Balancer closes that path.
+	//
+	// This needs a Service proxy that applies loadBalancerSourceRanges to the
+	// NodePort, such as Cilium with bpf.lbSourceRangeAllTypes=true. Do not
+	// enable it with kube-proxy: kube-proxy also applies the ranges to
+	// in-cluster traffic to the Load Balancer IP, so pods calling the Service
+	// through that IP are dropped.
+	//
+	// Overrides HCLOUD_LOAD_BALANCERS_RESTRICT_NODE_PORT_SOURCE in both
+	// directions. Setting it to false removes the entries the cloud controller
+	// manager added.
+	//
+	// Default: false.
+	LBRestrictNodePortSource Name = "load-balancer.hetzner.cloud/restrict-node-port-source"
+
+	// LBNodePortSourceRanges lists the spec.loadBalancerSourceRanges entries
+	// the cloud controller manager added for LBRestrictNodePortSource, as a
+	// comma-separated list. It lets the controller replace or remove its own
+	// entries without touching entries set by anyone else. Read-only.
+	LBNodePortSourceRanges Name = "load-balancer.hetzner.cloud/node-port-source-ranges"
+
 	// LBRobotTargetAddressFamily picks the address family used when a dedicated
 	// server is added as an IP target of the Load Balancer.
 	//

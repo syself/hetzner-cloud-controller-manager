@@ -124,7 +124,7 @@ func (tt *LoadBalancerTestCase) run(t *testing.T) {
 		tt.Mock(t, tt)
 	}
 
-	tt.LoadBalancers = newLoadBalancers(tt.LBOps, tt.ActionClient, tt.DisablePrivateIngressDefault, tt.DisableIPv6Default)
+	tt.LoadBalancers = newLoadBalancers(tt.LBOps, tt.ActionClient, tt.DisablePrivateIngressDefault, tt.DisableIPv6Default, false)
 	tt.Perform(t, tt)
 
 	tt.LBOps.AssertExpectations(t)

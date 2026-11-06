@@ -95,6 +95,7 @@ For convenience, you can set the following environment variables as cluster-wide
 * `HCLOUD_LOAD_BALANCERS_USE_PRIVATE_IP`
 * `HCLOUD_LOAD_BALANCERS_ENABLED`
 * `HCLOUD_LOAD_BALANCERS_ROBOT_TARGET_ADDRESS_FAMILY`
+* `HCLOUD_LOAD_BALANCERS_RESTRICT_NODE_PORT_SOURCE`
 
 ## Targets for dedicated servers
 
@@ -115,6 +116,74 @@ you really want both.
 
 This setting is separate from `HCLOUD_LOAD_BALANCERS_DISABLE_IPV6`, which
 controls the public IPv6 address of the Load Balancer itself.
+
+## Limit the NodePort to the Load Balancer
+
+A Service of type `LoadBalancer` also gets a NodePort, and the Load Balancer
+sends its traffic to that NodePort on every node. The NodePort is open on every
+node address, not only to the Load Balancer. If the nodes have public IPs and no
+private network or firewall in front of them, anyone on the internet can reach
+the Service directly on `<node-ip>:<nodePort>`, bypassing the Load Balancer.
+
+With `HCLOUD_LOAD_BALANCERS_RESTRICT_NODE_PORT_SOURCE=true`, or the
+`load-balancer.hetzner.cloud/restrict-node-port-source: "true"` annotation on a
+Service, the cloud controller manager adds the Load Balancer's own IPs to the
+Service's `spec.loadBalancerSourceRanges`, as `/32` entries:
+
+* the public IPv4, if the public network is enabled;
+* the private IPs, if the Load Balancer is attached to a network.
+
+The Load Balancer's IPv6 address is not added. The Load Balancer connects to the
+nodes over IPv4 even when a client uses IPv6.
+
+Entries already on the Service are kept. The entries the cloud controller
+manager added are recorded in the read-only
+`load-balancer.hetzner.cloud/node-port-source-ranges` annotation. With that, it
+replaces them when the Load Balancer's IP changes, and removes them when the
+annotation is set to `"false"` or the Load Balancer is deleted. The annotation
+overrides the environment variable in both directions; an empty value counts as
+unset. The writes show up in `managedFields` as `hcloud-ccm-node-port-source`.
+
+Changing the Service type: the API server only allows
+`loadBalancerSourceRanges` on Services of type `LoadBalancer`, so a request that
+only changes the type is rejected while the field is set. Remove the field in
+the same request (for example with a merge patch setting
+`"loadBalancerSourceRanges": null`), or set the annotation to `"false"` first
+and wait for the controller to remove its entries.
+
+Services with the Cilium annotation `service.cilium.io/src-ranges-policy: deny`
+are skipped: Cilium treats their ranges as a deny-list, and adding the Load
+Balancer there would block it.
+
+The cloud controller manager only writes the field. Your Service proxy has to
+apply it to the NodePort:
+
+* **Cilium** with kube-proxy replacement applies it to the NodePort when
+  `bpf.lbSourceRangeAllTypes=true` is set. In-cluster clients are not affected,
+  because Cilium only checks traffic that arrives on the node's network
+  interface.
+* **kube-proxy** does not apply it to the NodePort. It also applies it to
+  in-cluster traffic to the Load Balancer IP, so pods calling the Service
+  through that IP are dropped. Do not enable this feature with kube-proxy.
+
+The Load Balancer opens its own connection to the node, so the node only ever
+sees the Load Balancer's IP as the source. Client CIDRs in
+`loadBalancerSourceRanges` therefore never match. To filter by client IP, enable
+the [Proxy Protocol](#proxy-protocol) and filter in the ingress controller.
+
+What changes for existing Services when the feature is turned on:
+
+* A Service that lists only client CIDRs was unreachable through the Load
+  Balancer before (the node sees the Load Balancer's IP, which is not listed).
+  With the Load Balancer added, it works again, for every client.
+* With Cilium's `bpf.lbSourceRangeAllTypes=true`, the ranges also apply to the
+  Service's `spec.externalIPs`. Direct access to those addresses, and to UDP
+  NodePorts, is limited to the Load Balancer too.
+
+The NodePort is open from the moment the Service is created until the Load
+Balancer exists and its IP has been written, usually seconds. The ranges are
+written at the end of each Load Balancer sync, so if an earlier step of the
+sync fails, the NodePort stays open until a later sync succeeds.
 
 ## Reference existing Load Balancers
 
