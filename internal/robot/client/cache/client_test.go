@@ -8,6 +8,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -147,6 +148,85 @@ func TestServerGetListKeepsForcedRefreshNames(t *testing.T) {
 	require.Len(t, servers, 1)
 	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
 	robotClient.AssertExpectations(t)
+}
+
+// TestConcurrentAccess runs every method from many goroutines at once with an
+// expired cache. Run with -race: before the cache took a lock, this crashed
+// with "concurrent map writes".
+func TestConcurrentAccess(t *testing.T) {
+	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
+	var clock sync.Mutex
+	robotClient := &mocks.RobotClient{}
+	robotClient.On("ServerGetList").Return([]models.Server{
+		{Name: "bm-1", ServerNumber: 1},
+		{Name: "bm-2", ServerNumber: 2},
+	}, nil)
+	robotClient.On("SetCredentials", "user", "password").Return(nil)
+
+	client := &cacheRobotClient{
+		robotClient: robotClient,
+		now: func() time.Time {
+			// Every call moves the clock past the timeout, so every call syncs.
+			clock.Lock()
+			defer clock.Unlock()
+			now = now.Add(time.Minute)
+			return now
+		},
+		timeout:                  time.Second,
+		forcedRefreshServerNames: make(map[string]time.Time),
+	}
+
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(4)
+		go func() {
+			defer wg.Done()
+			servers, err := client.ServerGetList()
+			require.NoError(t, err)
+			require.Len(t, servers, 2)
+		}()
+		go func() {
+			defer wg.Done()
+			server, err := client.ServerGet(2)
+			require.NoError(t, err)
+			require.Equal(t, "bm-2", server.Name)
+		}()
+		go func(i int) {
+			defer wg.Done()
+			_, err := client.ServerGetListForceRefresh(fmt.Sprintf("bm-missing-%d", i%3))
+			require.NoError(t, err)
+		}(i)
+		go func() {
+			defer wg.Done()
+			require.NoError(t, client.SetCredentials("user", "password"))
+		}()
+	}
+	wg.Wait()
+}
+
+// TestForcedRefreshAfterSetCredentials covers a forced refresh after the
+// credentials changed, which used to write into a nil map.
+func TestForcedRefreshAfterSetCredentials(t *testing.T) {
+	now := time.Date(2026, time.March, 16, 10, 0, 0, 0, time.UTC)
+	robotClient := &mocks.RobotClient{}
+	robotClient.On("ServerGetList").Return([]models.Server{{Name: "bm-1", ServerNumber: 1}}, nil)
+	robotClient.On("SetCredentials", "user", "password").Return(nil)
+
+	client := &cacheRobotClient{
+		robotClient:              robotClient,
+		now:                      func() time.Time { return now },
+		timeout:                  time.Hour,
+		forcedRefreshServerNames: make(map[string]time.Time),
+	}
+	require.NoError(t, client.SetCredentials("user", "password"))
+	_, err := client.ServerGetListForceRefresh("bm-missing")
+	require.NoError(t, err)
+	require.True(t, client.nodeHasAlreadyForcedRefresh("bm-missing"))
+
+	// A second forced refresh for the same name inside the window uses the cache.
+	_, err = client.ServerGetListForceRefresh("bm-missing")
+	require.NoError(t, err)
+	robotClient.AssertNumberOfCalls(t, "ServerGetList", 1)
 }
 
 func writeCredentials(rootDir, user, password string) error {

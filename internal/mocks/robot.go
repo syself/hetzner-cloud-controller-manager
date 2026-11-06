@@ -18,9 +18,9 @@ func (m *RobotClient) ServerGetListForceRefresh(_ string) ([]models.Server, erro
 	return m.ServerGetList()
 }
 
-func (m *RobotClient) SetCredentials(_, _ string) error {
-	args := m.Called()
-	return args.Error(3)
+func (m *RobotClient) SetCredentials(username, password string) error {
+	args := m.Called(username, password)
+	return args.Error(0)
 }
 
 func (m *RobotClient) BootLinuxDelete(_ int) (*models.Linux, error) {
